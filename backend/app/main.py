@@ -1,0 +1,96 @@
+"""
+FastAPI main application
+"""
+from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from contextlib import asynccontextmanager
+
+from app.config import settings
+from app.database import get_db, create_tables
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events"""
+    # Startup
+    print("🚀 Starting FitConnect API...")
+    create_tables()
+    print("✅ Database tables created/verified")
+    
+    yield
+    
+    # Shutdown
+    print("🛑 Shutting down FitConnect API...")
+
+
+# Create FastAPI application
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    description="Personal Trainer Platform API with Optimal Scheduling",
+    lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": "Welcome to FitConnect API",
+        "version": settings.app_version,
+        "status": "running",
+        "environment": settings.environment
+    }
+
+
+@app.get("/health")
+async def health_check(db: Session = Depends(get_db)):
+    """Health check endpoint"""
+    try:
+        # Test database connection
+        db.execute("SELECT 1")
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "environment": settings.environment
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "database": "disconnected",
+                "error": str(e)
+            }
+        )
+
+
+# Include routers (we'll create these later)
+# from app.routers import auth, users, trainers, sessions, programs, messages
+# app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+# app.include_router(users.router, prefix="/api/users", tags=["Users"])
+# app.include_router(trainers.router, prefix="/api/trainers", tags=["Trainers"])
+# app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
+# app.include_router(programs.router, prefix="/api/programs", tags=["Programs"])
+# app.include_router(messages.router, prefix="/api/messages", tags=["Messages"])
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.debug
+    )
