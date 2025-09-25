@@ -2,15 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { auth } from '../../../lib/api';
 
 /**
  * Sign up page with registration form
  */
 export default function SignUpPage() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
+    username: '',
     password: '',
     confirmPassword: '',
     role: 'client' as 'client' | 'trainer',
@@ -40,6 +44,12 @@ export default function SignUpPage() {
 
     if (!formData.lastName.trim()) {
       newErrors.lastName = 'Last name is required';
+    }
+
+    if (!formData.username.trim()) {
+      newErrors.username = 'Username is required';
+    } else if (formData.username.length < 3) {
+      newErrors.username = 'Username must be at least 3 characters';
     }
 
     if (!formData.email) {
@@ -77,12 +87,40 @@ export default function SignUpPage() {
 
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Call our real API
+      const response = await auth.register({
+        email: formData.email,
+        username: formData.username,
+        full_name: `${formData.firstName} ${formData.lastName}`,
+        password: formData.password,
+        role: formData.role,
+      });
+      
+      console.log('Registration successful:', response);
+      
+      // Redirect based on user role
+      switch (response.user.role) {
+        case 'client':
+          router.push('/client');
+          break;
+        case 'trainer':
+          router.push('/trainer');
+          break;
+        case 'admin':
+          router.push('/admin');
+          break;
+        default:
+          router.push('/');
+      }
+    } catch (error: any) {
+      console.error('Registration failed:', error);
+      setErrors({
+        general: error.message || 'Registration failed. Please try again.',
+      });
+    } finally {
       setIsLoading(false);
-      console.log('Sign up data:', formData);
-      // Here you would typically redirect to verification or dashboard
-    }, 1500);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -128,6 +166,19 @@ export default function SignUpPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-lg sm:rounded-lg sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
+            {/* General Error Display */}
+            {errors.general && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <i data-feather="alert-circle" className="h-5 w-5 text-red-400"></i>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-red-700">{errors.general}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Name Fields */}
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -187,6 +238,36 @@ export default function SignUpPage() {
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* Username Field */}
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                Username
+              </label>
+              <div className="mt-1 relative">
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  autoComplete="username"
+                  value={formData.username}
+                  onChange={handleChange}
+                  className={`appearance-none block w-full px-3 py-2 border rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-smooth ${
+                    errors.username ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="Choose a username"
+                />
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                  <i data-feather="user" className="h-5 w-5 text-gray-400"></i>
+                </div>
+              </div>
+              {errors.username && (
+                <p className="mt-2 text-sm text-red-600 flex items-center">
+                  <i data-feather="alert-circle" className="h-4 w-4 mr-1"></i>
+                  {errors.username}
+                </p>
+              )}
             </div>
 
             {/* Email Field */}
@@ -380,3 +461,5 @@ export default function SignUpPage() {
     </div>
   );
 }
+
+

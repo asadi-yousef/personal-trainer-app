@@ -50,3 +50,5 @@ if __name__ == "__main__":
         print("   2. API will be available at: http://localhost:8000")
     else:
         print("\n❌ Database setup failed!")
+
+

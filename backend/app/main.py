@@ -76,12 +76,15 @@ async def health_check(db: Session = Depends(get_db)):
         )
 
 
-# Include routers (we'll create these later)
-# from app.routers import auth, users, trainers, sessions, programs, messages
-# app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+# Include routers
+from app.routers import auth, trainers, sessions
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(trainers.router, prefix="/api/trainers", tags=["Trainers"])
+app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
+
+# TODO: Add more routers as we build them
+# from app.routers import users, programs, messages
 # app.include_router(users.router, prefix="/api/users", tags=["Users"])
-# app.include_router(trainers.router, prefix="/api/trainers", tags=["Trainers"])
-# app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
 # app.include_router(programs.router, prefix="/api/programs", tags=["Programs"])
 # app.include_router(messages.router, prefix="/api/messages", tags=["Messages"])
 
@@ -94,3 +97,4 @@ if __name__ == "__main__":
         port=8000,
         reload=settings.debug
     )
+

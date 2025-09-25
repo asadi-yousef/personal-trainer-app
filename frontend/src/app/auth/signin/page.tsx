@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { auth } from '../../../lib/api';
 
 /**
  * Sign in page with email/password form
  */
 export default function SignInPage() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -54,12 +57,37 @@ export default function SignInPage() {
 
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Call our real API
+      const response = await auth.login({
+        email: formData.email,
+        password: formData.password,
+      });
+      
+      console.log('Login successful:', response);
+      
+      // Redirect based on user role
+      switch (response.user.role) {
+        case 'client':
+          router.push('/client');
+          break;
+        case 'trainer':
+          router.push('/trainer');
+          break;
+        case 'admin':
+          router.push('/admin');
+          break;
+        default:
+          router.push('/');
+      }
+    } catch (error: any) {
+      console.error('Login failed:', error);
+      setErrors({
+        general: error.message || 'Login failed. Please check your credentials.',
+      });
+    } finally {
       setIsLoading(false);
-      console.log('Sign in data:', formData);
-      // Here you would typically redirect to dashboard
-    }, 1500);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -103,6 +131,19 @@ export default function SignInPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-lg sm:rounded-lg sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
+            {/* General Error Display */}
+            {errors.general && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <i data-feather="alert-circle" className="h-5 w-5 text-red-400"></i>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-red-700">{errors.general}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -237,3 +278,4 @@ export default function SignInPage() {
     </div>
   );
 }
+
