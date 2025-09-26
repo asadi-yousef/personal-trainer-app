@@ -3,19 +3,19 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { auth } from '../../../lib/api';
+import { useAuth } from '../../../contexts/AuthContext';
 
 /**
  * Sign in page with email/password form
  */
 export default function SignInPage() {
   const router = useRouter();
+  const { login, isLoading } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const loadFeatherIcons = async () => {
@@ -54,39 +54,18 @@ export default function SignInPage() {
     if (!validateForm()) {
       return;
     }
-
-    setIsLoading(true);
     
     try {
-      // Call our real API
-      const response = await auth.login({
-        email: formData.email,
-        password: formData.password,
-      });
+      // Use the auth context login function
+      await login(formData.email, formData.password);
       
-      console.log('Login successful:', response);
-      
-      // Redirect based on user role
-      switch (response.user.role) {
-        case 'client':
-          router.push('/client');
-          break;
-        case 'trainer':
-          router.push('/trainer');
-          break;
-        case 'admin':
-          router.push('/admin');
-          break;
-        default:
-          router.push('/');
-      }
+      // Redirect based on user role (this will be handled by the context)
+      router.push('/');
     } catch (error: any) {
       console.error('Login failed:', error);
       setErrors({
         general: error.message || 'Login failed. Please check your credentials.',
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 

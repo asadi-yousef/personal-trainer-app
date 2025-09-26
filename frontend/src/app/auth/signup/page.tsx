@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { auth } from '../../../lib/api';
+import { useAuth } from '../../../contexts/AuthContext';
 
 /**
  * Sign up page with registration form
  */
 export default function SignUpPage() {
   const router = useRouter();
+  const { register, isLoading } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -21,7 +22,6 @@ export default function SignUpPage() {
     agreeToTerms: false,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const loadFeatherIcons = async () => {
@@ -84,12 +84,10 @@ export default function SignUpPage() {
     if (!validateForm()) {
       return;
     }
-
-    setIsLoading(true);
     
     try {
-      // Call our real API
-      const response = await auth.register({
+      // Use the auth context register function
+      await register({
         email: formData.email,
         username: formData.username,
         full_name: `${formData.firstName} ${formData.lastName}`,
@@ -97,29 +95,13 @@ export default function SignUpPage() {
         role: formData.role,
       });
       
-      console.log('Registration successful:', response);
-      
-      // Redirect based on user role
-      switch (response.user.role) {
-        case 'client':
-          router.push('/client');
-          break;
-        case 'trainer':
-          router.push('/trainer');
-          break;
-        case 'admin':
-          router.push('/admin');
-          break;
-        default:
-          router.push('/');
-      }
+      // Redirect to home page (context will handle user state)
+      router.push('/');
     } catch (error: any) {
       console.error('Registration failed:', error);
       setErrors({
         general: error.message || 'Registration failed. Please try again.',
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
