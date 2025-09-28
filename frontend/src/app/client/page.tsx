@@ -7,14 +7,16 @@ import StatCard from '../../components/Cards/StatCard';
 import SessionItem from '../../components/Cards/SessionItem';
 import ProgramCard from '../../components/Cards/ProgramCard';
 import MessageItem from '../../components/Cards/MessageItem';
-import { mockStats, mockSessions, mockProgram, mockMessages, mockUser } from '../../lib/data';
+import { mockStats, mockSessions, mockProgram, mockMessages } from '../../lib/data';
+import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
 
 /**
  * Client dashboard page with sidebar and main content
  */
-export default function ClientDashboard() {
+function ClientDashboardContent() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -67,7 +69,7 @@ export default function ClientDashboard() {
       {/* Main Content */}
       <div className={`main-content transition-all duration-300 ${sidebarCollapsed ? 'content-collapsed' : 'content-expanded'}`}>
         {/* Top Bar */}
-        <PageHeader user={mockUser} />
+        <PageHeader user={user} />
 
         <div className="p-6">
           {/* Welcome Banner */}
@@ -75,7 +77,7 @@ export default function ClientDashboard() {
             <div className="flex flex-col lg:flex-row items-center justify-between">
               <div>
                 <h1 className="text-2xl lg:text-3xl font-bold mb-2">
-                  Welcome back, {mockUser.name}! 👋
+                  Welcome back, {user?.full_name?.split(' ')[0] || user?.username}! 👋
                 </h1>
                 <p className="text-indigo-100">
                   Ready to continue your fitness journey? Schedule your next session today.
@@ -153,5 +155,13 @@ export default function ClientDashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ClientDashboard() {
+  return (
+    <ProtectedRoute requiredRole="client">
+      <ClientDashboardContent />
+    </ProtectedRoute>
   );
 }

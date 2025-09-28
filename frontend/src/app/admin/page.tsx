@@ -7,14 +7,16 @@ import StatCard from '../../components/Cards/StatCard';
 import UserTable from '../../components/Admin/UserTable';
 import AnalyticsChart from '../../components/Admin/AnalyticsChart';
 import RecentActivity from '../../components/Admin/RecentActivity';
-import { mockAdminStats, mockUsers, mockAdminUser } from '../../lib/data';
+import { mockAdminStats, mockUsers } from '../../lib/data';
+import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
 
 /**
  * Admin dashboard page with user management and analytics
  */
-export default function AdminDashboard() {
+function AdminDashboardContent() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -63,7 +65,7 @@ export default function AdminDashboard() {
       {/* Main Content */}
       <div className={`main-content transition-all duration-300 ${sidebarCollapsed ? 'content-collapsed' : 'content-expanded'}`}>
         {/* Top Bar */}
-        <PageHeader user={mockAdminUser} />
+        <PageHeader user={user} />
 
         <div className="p-6">
           {/* Welcome Banner */}
@@ -191,6 +193,15 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+export default function AdminDashboard() {
+  return (
+    <ProtectedRoute requiredRole="admin">
+      <AdminDashboardContent />
+    </ProtectedRoute>
+  );
+}
+
 
 
 

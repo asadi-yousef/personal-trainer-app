@@ -63,7 +63,10 @@ class ApiClient {
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
-    this.token = localStorage.getItem('access_token');
+    // Only access localStorage in the browser
+    if (typeof window !== 'undefined') {
+      this.token = localStorage.getItem('access_token');
+    }
   }
 
   private async request<T>(
@@ -101,8 +104,10 @@ class ApiClient {
     });
     
     this.token = response.access_token;
-    localStorage.setItem('access_token', this.token);
-    localStorage.setItem('user', JSON.stringify(response.user));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('access_token', this.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+    }
     
     return response;
   }
@@ -114,16 +119,20 @@ class ApiClient {
     });
     
     this.token = response.access_token;
-    localStorage.setItem('access_token', this.token);
-    localStorage.setItem('user', JSON.stringify(response.user));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('access_token', this.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+    }
     
     return response;
   }
 
   async logout(): Promise<void> {
     this.token = null;
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('user');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+    }
   }
 
   async getCurrentUser(): Promise<User> {
@@ -223,8 +232,11 @@ class ApiClient {
   }
 
   getStoredUser(): User | null {
-    const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+    if (typeof window !== 'undefined') {
+      const userStr = localStorage.getItem('user');
+      return userStr ? JSON.parse(userStr) : null;
+    }
+    return null;
   }
 }
 

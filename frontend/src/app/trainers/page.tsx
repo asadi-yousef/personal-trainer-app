@@ -1,20 +1,60 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { mockTrainers, Specialty, Availability } from '../../lib/data';
+import { Specialty, Availability, Trainer } from '../../lib/data';
 import TrainerCard from '../../components/Trainers/TrainerCard';
 import Filters from '../../components/Trainers/Filters';
 import Pagination from '../../components/Trainers/Pagination';
+import { trainers } from '../../lib/api';
 
 /**
  * Trainers page with filtering and pagination
  */
 export default function TrainersPage() {
-  const [trainers] = useState(mockTrainers);
+  const [trainersData, setTrainersData] = useState<Trainer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalTrainers, setTotalTrainers] = useState(0);
   const [selectedSpecialty, setSelectedSpecialty] = useState<Specialty | 'All'>('All');
   const [selectedAvailability, setSelectedAvailability] = useState<Availability | 'All'>('All');
   const [currentPage, setCurrentPage] = useState(1);
   const trainersPerPage = 6;
+
+  // Fetch trainers data from API
+  const fetchTrainers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const params: any = {
+        page: currentPage,
+        size: trainersPerPage,
+      };
+
+      // Add filters if not 'All'
+      if (selectedSpecialty !== 'All') {
+        params.specialty = selectedSpecialty;
+      }
+      if (selectedAvailability !== 'All') {
+        params.availability = selectedAvailability;
+      }
+
+      const response = await trainers.getAll(params);
+      setTrainersData(response.trainers);
+      setTotalPages(response.total_pages);
+      setTotalTrainers(response.total);
+    } catch (err: any) {
+      console.error('Failed to fetch trainers:', err);
+      setError(err.message || 'Failed to load trainers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTrainers();
+  }, [currentPage, selectedSpecialty, selectedAvailability]);
 
   useEffect(() => {
     // Initialize AOS animations
@@ -36,25 +76,6 @@ export default function TrainersPage() {
     initAOS();
     initFeather();
   }, []);
-
-  // Filter trainers based on selected filters
-  const filteredTrainers = useMemo(() => {
-    return trainers.filter(trainer => {
-      const specialtyMatch = selectedSpecialty === 'All' || trainer.specialty === selectedSpecialty;
-      const availabilityMatch = selectedAvailability === 'All' || trainer.availability.includes(selectedAvailability);
-      return specialtyMatch && availabilityMatch;
-    });
-  }, [trainers, selectedSpecialty, selectedAvailability]);
-
-  // Paginate filtered trainers
-  const paginatedTrainers = useMemo(() => {
-    const startIndex = (currentPage - 1) * trainersPerPage;
-    const endIndex = startIndex + trainersPerPage;
-    return filteredTrainers.slice(startIndex, endIndex);
-  }, [filteredTrainers, currentPage, trainersPerPage]);
-
-  // Calculate total pages
-  const totalPages = Math.ceil(filteredTrainers.length / trainersPerPage);
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -102,7 +123,25 @@ export default function TrainersPage() {
       {/* Trainers Grid */}
       <section className="py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {filteredTrainers.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-16">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Loading trainers...</h3>
+              <p className="text-gray-600">Please wait while we fetch the best trainers for you.</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-16">
+              <i data-feather="alert-circle" className="h-16 w-16 text-red-400 mx-auto mb-4"></i>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Error loading trainers</h3>
+              <p className="text-gray-600 mb-4">{error}</p>
+              <button 
+                onClick={fetchTrainers}
+                className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : trainersData.length === 0 ? (
             <div className="text-center py-16">
               <i data-feather="search" className="h-16 w-16 text-gray-400 mx-auto mb-4"></i>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No trainers found</h3>
@@ -112,12 +151,12 @@ export default function TrainersPage() {
             <>
               <div className="mb-8">
                 <p className="text-gray-600">
-                  Showing {paginatedTrainers.length} of {filteredTrainers.length} trainers
+                  Showing {trainersData.length} of {totalTrainers} trainers
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {paginatedTrainers.map((trainer, index) => (
+                {trainersData.map((trainer, index) => (
                   <div
                     key={trainer.id}
                     data-aos="fade-up"

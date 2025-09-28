@@ -7,10 +7,30 @@ interface TrainerCardProps {
   trainer: Trainer;
 }
 
+// Helper function to map API trainer data to component format
+const mapApiTrainerToComponent = (apiTrainer: any) => ({
+  id: apiTrainer.id,
+  name: apiTrainer.user_name || 'Unknown Trainer',
+  avatar: apiTrainer.user_avatar || 'https://i.pravatar.cc/200',
+  cover: apiTrainer.cover_image || 'https://picsum.photos/400/300',
+  specialty: apiTrainer.specialty,
+  rating: apiTrainer.rating || 0,
+  reviews: apiTrainer.reviews_count || 0,
+  price: apiTrainer.price_per_session || 0,
+  blurb: apiTrainer.bio || 'No description available',
+  availability: apiTrainer.availability ? 
+    (typeof apiTrainer.availability === 'string' ? 
+      JSON.parse(apiTrainer.availability) : 
+      apiTrainer.availability) : 
+    ['Flexible schedule']
+});
+
 /**
  * Trainer card component displaying trainer information
  */
 export default function TrainerCard({ trainer }: TrainerCardProps) {
+  // Map API data to component format
+  const mappedTrainer = mapApiTrainerToComponent(trainer);
   useEffect(() => {
     const loadFeatherIcons = async () => {
       try {
@@ -40,13 +60,13 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
       {/* Cover Image */}
       <div className="relative h-48">
         <img
-          src={trainer.cover}
-          alt={`${trainer.name} training`}
+          src={mappedTrainer.cover}
+          alt={`${mappedTrainer.name} training`}
           className="w-full h-full object-cover"
         />
         <div className="absolute top-4 right-4">
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSpecialtyColor(trainer.specialty)}`}>
-            {trainer.specialty}
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSpecialtyColor(mappedTrainer.specialty)}`}>
+            {mappedTrainer.specialty}
           </span>
         </div>
       </div>
@@ -56,19 +76,19 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
         {/* Trainer Info */}
         <div className="flex items-center mb-4">
           <img
-            src={trainer.avatar}
-            alt={trainer.name}
+            src={mappedTrainer.avatar}
+            alt={mappedTrainer.name}
             className="w-12 h-12 rounded-full mr-4"
           />
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">{trainer.name}</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{mappedTrainer.name}</h3>
             <div className="flex items-center">
               <div className="flex text-yellow-400 mr-2">
-                {'★'.repeat(Math.floor(trainer.rating))}
-                {trainer.rating % 1 !== 0 && <span className="text-yellow-400">★</span>}
+                {'★'.repeat(Math.floor(mappedTrainer.rating))}
+                {mappedTrainer.rating % 1 !== 0 && <span className="text-yellow-400">★</span>}
               </div>
               <span className="text-sm text-gray-600">
-                {trainer.rating} ({trainer.reviews} reviews)
+                {mappedTrainer.rating} ({mappedTrainer.reviews} reviews)
               </span>
             </div>
           </div>
@@ -76,14 +96,14 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
 
         {/* Description */}
         <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-          {trainer.blurb}
+          {mappedTrainer.blurb}
         </p>
 
         {/* Availability */}
         <div className="mb-4">
           <h4 className="text-sm font-medium text-gray-900 mb-2">Available:</h4>
           <div className="flex flex-wrap gap-1">
-            {trainer.availability.map((time) => (
+            {mappedTrainer.availability.map((time) => (
               <span
                 key={time}
                 className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md"
@@ -98,7 +118,7 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-2xl font-bold text-indigo-600">${trainer.price}</span>
+              <span className="text-2xl font-bold text-indigo-600">${mappedTrainer.price}</span>
               <span className="text-gray-600 text-sm ml-1">/session</span>
             </div>
             <button className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-smooth focus-ring">

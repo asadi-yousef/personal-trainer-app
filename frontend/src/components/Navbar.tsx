@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * Main navigation bar component with mobile menu support
@@ -11,6 +12,7 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
+  const { user, isAuthenticated, logout } = useAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -40,12 +42,16 @@ export default function Navbar() {
     }
   }, [isMenuOpen, mounted]);
 
-  const navLinks = [
+  // Navigation links based on authentication status
+  const navLinks = isAuthenticated && user ? [
     { href: '/', label: 'Home' },
     { href: '/trainers', label: 'Trainers' },
-    { href: '/client', label: 'Client Portal' },
-    { href: '/trainer', label: 'Trainer Portal' },
-    { href: '/admin', label: 'Admin Portal' },
+    ...(user.role === 'client' ? [{ href: '/client', label: 'My Dashboard' }] : []),
+    ...(user.role === 'trainer' ? [{ href: '/trainer', label: 'Trainer Portal' }] : []),
+    ...(user.role === 'admin' ? [{ href: '/admin', label: 'Admin Portal' }] : []),
+  ] : [
+    { href: '/', label: 'Home' },
+    { href: '/trainers', label: 'Trainers' },
   ];
 
   const isActive = (href: string) => {
@@ -80,11 +86,36 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Sign In Button */}
-          <div className="hidden md:flex items-center">
-            <Link href="/auth/signin" className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 focus-ring transition-smooth">
-              Sign In
-            </Link>
+          {/* User Actions */}
+          <div className="hidden md:flex items-center space-x-4">
+            {isAuthenticated && user ? (
+              <>
+                {/* User Info */}
+                <div className="flex items-center space-x-3">
+                  <img
+                    src={user.avatar || 'https://i.pravatar.cc/200'}
+                    alt={user.full_name || user.username}
+                    className="w-8 h-8 rounded-full"
+                  />
+                  <div className="text-sm">
+                    <p className="font-medium text-gray-900">{user.full_name?.split(' ')[0] || user.username}</p>
+                    <p className="text-gray-500 capitalize">{user.role}</p>
+                  </div>
+                </div>
+                
+                {/* Logout Button */}
+                <button
+                  onClick={logout}
+                  className="bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700 focus-ring transition-smooth"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link href="/auth/signin" className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 focus-ring transition-smooth">
+                Sign In
+              </Link>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -120,9 +151,37 @@ export default function Navbar() {
               </Link>
             ))}
             <div className="pt-4 border-t border-gray-200">
-              <Link href="/auth/signin" className="block w-full text-left bg-indigo-600 text-white px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-700 focus-ring transition-smooth">
-                Sign In
-              </Link>
+              {isAuthenticated && user ? (
+                <>
+                  {/* Mobile User Info */}
+                  <div className="flex items-center space-x-3 px-3 py-2 mb-2">
+                    <img
+                      src={user.avatar || 'https://i.pravatar.cc/200'}
+                      alt={user.full_name || user.username}
+                      className="w-8 h-8 rounded-full"
+                    />
+                    <div className="text-sm">
+                      <p className="font-medium text-gray-900">{user.full_name?.split(' ')[0] || user.username}</p>
+                      <p className="text-gray-500 capitalize">{user.role}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Mobile Logout Button */}
+                  <button
+                    onClick={() => {
+                      logout();
+                      setIsMenuOpen(false);
+                    }}
+                    className="block w-full text-left bg-gray-600 text-white px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 focus-ring transition-smooth"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <Link href="/auth/signin" className="block w-full text-left bg-indigo-600 text-white px-3 py-2 rounded-md text-base font-medium hover:bg-indigo-700 focus-ring transition-smooth">
+                  Sign In
+                </Link>
+              )}
             </div>
           </div>
         </div>

@@ -77,10 +77,16 @@ async def health_check(db: Session = Depends(get_db)):
 
 
 # Include routers
-from app.routers import auth, trainers, sessions
+from app.routers import auth, trainers, sessions, availability, bookings, programs, messages, session_tracking, analytics
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(trainers.router, prefix="/api/trainers", tags=["Trainers"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
+app.include_router(availability.router, prefix="/api", tags=["Availability"])
+app.include_router(bookings.router, prefix="/api", tags=["Bookings"])
+app.include_router(programs.router, prefix="/api", tags=["Programs"])
+app.include_router(messages.router, prefix="/api", tags=["Messages"])
+app.include_router(session_tracking.router, prefix="/api", tags=["Session Tracking"])
+app.include_router(analytics.router, prefix="/api", tags=["Analytics"])
 
 # TODO: Add more routers as we build them
 # from app.routers import users, programs, messages

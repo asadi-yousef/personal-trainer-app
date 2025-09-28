@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -14,6 +15,7 @@ interface SidebarProps {
  */
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
 
   useEffect(() => {
     const loadFeatherIcons = async () => {
@@ -114,6 +116,27 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
         </div>
       </div>
+
+      {/* User Profile */}
+      {user && (
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center">
+            <img
+              src={user.avatar || 'https://i.pravatar.cc/200'}
+              alt={user.full_name || user.username}
+              className="w-10 h-10 rounded-full"
+            />
+            {!collapsed && (
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-900">
+                  {user.full_name?.split(' ')[0] || user.username}
+                </p>
+                <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4">

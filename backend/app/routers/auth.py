@@ -54,6 +54,20 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(db_user)
         
+        # If user is a trainer, create trainer profile automatically
+        if db_user.role == UserRole.TRAINER:
+            from app.models import Trainer
+            trainer_profile = Trainer(
+                user_id=db_user.id,
+                specialty="Strength Training",  # Default specialty
+                price_per_session=50.0,  # Default price
+                bio="New trainer - profile setup required",
+                experience_years=0,
+                is_available=True
+            )
+            db.add(trainer_profile)
+            db.commit()
+        
         # Create access token
         access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
         access_token = create_access_token(

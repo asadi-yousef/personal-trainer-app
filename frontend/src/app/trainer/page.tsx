@@ -7,14 +7,16 @@ import StatCard from '../../components/Cards/StatCard';
 import BookingCard from '../../components/Trainer/BookingCard';
 import AvailabilityCalendar from '../../components/Trainer/AvailabilityCalendar';
 import ProgramCard from '../../components/Trainer/ProgramCard';
-import { mockTrainerStats, mockTrainerBookings, mockTrainerPrograms, mockTrainerUser } from '../../lib/data';
+import { mockTrainerStats, mockTrainerBookings, mockTrainerPrograms } from '../../lib/data';
+import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
 
 /**
  * Trainer dashboard page with sidebar and main content
  */
-export default function TrainerDashboard() {
+function TrainerDashboardContent() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -67,7 +69,7 @@ export default function TrainerDashboard() {
       {/* Main Content */}
       <div className={`main-content transition-all duration-300 ${sidebarCollapsed ? 'content-collapsed' : 'content-expanded'}`}>
         {/* Top Bar */}
-        <PageHeader user={mockTrainerUser} />
+        <PageHeader user={user} />
 
         <div className="p-6">
           {/* Welcome Banner */}
@@ -75,7 +77,7 @@ export default function TrainerDashboard() {
             <div className="flex flex-col lg:flex-row items-center justify-between">
               <div>
                 <h1 className="text-2xl lg:text-3xl font-bold mb-2">
-                  Welcome back, {mockTrainerUser.name}! 💪
+                  Welcome back, {user?.full_name?.split(' ')[0] || user?.username}! 💪
                 </h1>
                 <p className="text-indigo-100">
                   Ready to help your clients achieve their fitness goals? Let's make today great!
@@ -175,6 +177,15 @@ export default function TrainerDashboard() {
     </div>
   );
 }
+
+export default function TrainerDashboard() {
+  return (
+    <ProtectedRoute requiredRole="trainer">
+      <TrainerDashboardContent />
+    </ProtectedRoute>
+  );
+}
+
 
 
 

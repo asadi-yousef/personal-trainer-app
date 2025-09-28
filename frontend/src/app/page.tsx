@@ -2,12 +2,17 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { mockFeatures, mockTestimonials } from '../lib/data';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * Landing page with hero section, features, testimonials, and CTA
  */
 export default function LandingPage() {
+  const { user, isAuthenticated } = useAuth();
+  const router = useRouter();
+
   useEffect(() => {
     // Initialize AOS animations
     const initAOS = async () => {
@@ -29,6 +34,38 @@ export default function LandingPage() {
     initFeather();
   }, []);
 
+  // Function to get the appropriate portal link based on user role
+  const getPortalLink = () => {
+    if (!isAuthenticated || !user || !user.role) return '/auth/signin';
+    
+    switch (user.role) {
+      case 'client':
+        return '/client';
+      case 'trainer':
+        return '/trainer';
+      case 'admin':
+        return '/admin';
+      default:
+        return '/auth/signin';
+    }
+  };
+
+  // Function to get the appropriate portal button text
+  const getPortalButtonText = () => {
+    if (!isAuthenticated || !user || !user.role) return 'Sign In';
+    
+    switch (user.role) {
+      case 'client':
+        return 'Go to Client Portal';
+      case 'trainer':
+        return 'Go to Trainer Portal';
+      case 'admin':
+        return 'Go to Admin Portal';
+      default:
+        return 'Sign In';
+    }
+  };
+
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
@@ -37,19 +74,33 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left Content */}
             <div data-aos="fade-right" className="text-white">
-              <h1 className="text-4xl lg:text-6xl font-bold mb-6">
-                Connect with your{' '}
-                <span className="text-yellow-300">perfect trainer</span>
-              </h1>
-              <p className="text-xl lg:text-2xl mb-8 text-gray-200">
-                Find certified personal trainers, book sessions, and achieve your fitness goals with personalized programs designed just for you.
-              </p>
+              {isAuthenticated && user ? (
+                <>
+                  <h1 className="text-4xl lg:text-6xl font-bold mb-6">
+                    Welcome back,{' '}
+                    <span className="text-yellow-300">{user.full_name?.split(' ')[0] || user.username || 'User'}!</span>
+                  </h1>
+                  <p className="text-xl lg:text-2xl mb-8 text-gray-200">
+                    Ready to continue your fitness journey? Access your personalized dashboard and connect with your trainer.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-4xl lg:text-6xl font-bold mb-6">
+                    Connect with your{' '}
+                    <span className="text-yellow-300">perfect trainer</span>
+                  </h1>
+                  <p className="text-xl lg:text-2xl mb-8 text-gray-200">
+                    Find certified personal trainers, book sessions, and achieve your fitness goals with personalized programs designed just for you.
+                  </p>
+                </>
+              )}
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
-                  href="/auth/signup"
+                  href={getPortalLink()}
                   className="bg-white text-indigo-600 px-8 py-4 rounded-lg font-semibold hover:bg-gray-100 transition-smooth focus-ring text-center"
                 >
-                  Get Started
+                  {getPortalButtonText()}
                 </Link>
                 <Link
                   href="/trainers"
@@ -179,18 +230,37 @@ export default function LandingPage() {
       <section className="py-20 bg-indigo-600">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div data-aos="fade-up">
-            <h2 className="text-3xl lg:text-4xl font-bold text-white mb-6">
-              Ready to Start Your Fitness Journey?
-            </h2>
-            <p className="text-xl text-indigo-100 mb-8">
-              Join thousands of people who have already transformed their lives with FitConnect.
-            </p>
-            <Link
-              href="/auth/signup"
-              className="inline-block bg-white text-indigo-600 px-8 py-4 rounded-lg font-semibold hover:bg-gray-100 transition-smooth focus-ring"
-            >
-              Start Your Fitness Journey
-            </Link>
+            {isAuthenticated && user ? (
+              <>
+                <h2 className="text-3xl lg:text-4xl font-bold text-white mb-6">
+                  Ready to Continue Your Fitness Journey?
+                </h2>
+                <p className="text-xl text-indigo-100 mb-8">
+                  Access your personalized dashboard and take your fitness to the next level.
+                </p>
+                <Link
+                  href={getPortalLink()}
+                  className="inline-block bg-white text-indigo-600 px-8 py-4 rounded-lg font-semibold hover:bg-gray-100 transition-smooth focus-ring"
+                >
+                  Go to Your Portal
+                </Link>
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl lg:text-4xl font-bold text-white mb-6">
+                  Ready to Start Your Fitness Journey?
+                </h2>
+                <p className="text-xl text-indigo-100 mb-8">
+                  Join thousands of people who have already transformed their lives with FitConnect.
+                </p>
+                <Link
+                  href="/auth/signup"
+                  className="inline-block bg-white text-indigo-600 px-8 py-4 rounded-lg font-semibold hover:bg-gray-100 transition-smooth focus-ring"
+                >
+                  Start Your Fitness Journey
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>
