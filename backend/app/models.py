@@ -506,7 +506,6 @@ class Conversation(Base):
     id = Column(Integer, primary_key=True, index=True)
     participant1_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     participant2_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    last_message_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
     last_message_at = Column(DateTime(timezone=True))
     status = Column(Enum(ConversationStatus), default=ConversationStatus.ACTIVE)
     
@@ -520,8 +519,7 @@ class Conversation(Base):
     # Relationships
     participant1 = relationship("User", foreign_keys=[participant1_id])
     participant2 = relationship("User", foreign_keys=[participant2_id])
-    last_message = relationship("Message", foreign_keys=[last_message_id])
-    messages = relationship("Message", back_populates="conversation")
+    messages = relationship("Message", back_populates="conversation", foreign_keys="[Message.conversation_id]")
 
 
 class Message(Base):
@@ -562,7 +560,7 @@ class Message(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    conversation = relationship("Conversation", back_populates="messages")
+    conversation = relationship("Conversation", back_populates="messages", foreign_keys=[conversation_id])
     sender = relationship("User", foreign_keys=[sender_id], back_populates="messages_sent")
     receiver = relationship("User", foreign_keys=[receiver_id], back_populates="messages_received")
     parent_message = relationship("Message", remote_side=[id], backref="replies")
@@ -685,6 +683,27 @@ class Booking(Base):
     client = relationship("User")
     trainer = relationship("Trainer")
     sessions = relationship("Session", back_populates="booking")
+    
+    # Properties for JSON fields
+    @property
+    def preferred_times_list(self):
+        """Parse preferred_times JSON string to list"""
+        if self.preferred_times:
+            try:
+                import json
+                return json.loads(self.preferred_times)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return []
+    
+    @preferred_times_list.setter
+    def preferred_times_list(self, value):
+        """Set preferred_times from list"""
+        if value:
+            import json
+            self.preferred_times = json.dumps(value)
+        else:
+            self.preferred_times = None
 
 
 class TrainerAvailability(Base):
@@ -702,6 +721,27 @@ class TrainerAvailability(Base):
     
     # Relationships
     trainer = relationship("Trainer")
+
+
+class TimeSlot(Base):
+    """Specific time slots for trainer availability and bookings"""
+    __tablename__ = "time_slots"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    trainer_id = Column(Integer, ForeignKey("trainers.id"), nullable=False)
+    date = Column(DateTime(timezone=True), nullable=False)  # Specific date
+    start_time = Column(DateTime(timezone=True), nullable=False)  # Full datetime
+    end_time = Column(DateTime(timezone=True), nullable=False)    # Full datetime
+    duration_minutes = Column(Integer, nullable=False, default=60)
+    is_available = Column(Boolean, default=True)
+    is_booked = Column(Boolean, default=False)
+    booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    trainer = relationship("Trainer")
+    booking = relationship("Booking")
 
 
 class ScheduleOptimization(Base):

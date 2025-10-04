@@ -1,18 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { mockTrainers } from '../../lib/data';
+import { trainers, bookings } from '../../lib/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface OptimalScheduleFinderProps {
   selectedTrainer: string | null;
   onTrainerSelect: (trainerId: string | null) => void;
   isFinding: boolean;
+  onBookingComplete?: () => void;
 }
 
 /**
  * Optimal schedule finder component for customers
  */
-export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect, isFinding }: OptimalScheduleFinderProps) {
+export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect, isFinding, onBookingComplete }: OptimalScheduleFinderProps) {
+  const { user } = useAuth();
   const [preferences, setPreferences] = useState({
     sessionType: '',
     duration: 60,
@@ -21,6 +24,29 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
     location: '',
     frequency: 'weekly'
   });
+  
+  const [availableTrainers, setAvailableTrainers] = useState<any[]>([]);
+  const [loadingTrainers, setLoadingTrainers] = useState(true);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+
+  // Fetch available trainers
+  useEffect(() => {
+    const fetchTrainers = async () => {
+      try {
+        setLoadingTrainers(true);
+        const trainersData = await trainers.getAll({ limit: 20 });
+        // Ensure we always have an array
+        setAvailableTrainers(Array.isArray(trainersData) ? trainersData : []);
+      } catch (error) {
+        console.error('Failed to fetch trainers:', error);
+        setAvailableTrainers([]);
+      } finally {
+        setLoadingTrainers(false);
+      }
+    };
+    
+    fetchTrainers();
+  }, []);
 
   useEffect(() => {
     const loadFeatherIcons = async () => {
@@ -77,6 +103,96 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
     }));
   };
 
+  const handleSmartBooking = async () => {
+    if (!user) {
+      alert('Please log in to book sessions');
+      return;
+    }
+    
+    if (!preferences.sessionType) {
+      alert('Please select a session type');
+      return;
+    }
+
+    try {
+      const bookingData: any = {
+        session_type: preferences.sessionType,
+        duration_minutes: preferences.duration,
+        location: preferences.location || 'Gym',
+        earliest_date: new Date().toISOString(),
+        latest_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 2 weeks ahead
+        preferred_times: preferences.preferredTimes,
+        avoid_times: [], // Could be enhanced to allow users to specify times to avoid
+        prioritize_convenience: true,
+        prioritize_cost: false,
+        allow_weekends: preferences.frequency !== 'daily', // Allow weekends unless daily frequency
+        allow_evenings: true
+      };
+
+      // Only add trainer_id if a trainer is selected
+      if (selectedTrainer) {
+        bookingData.trainer_id = parseInt(selectedTrainer);
+      }
+
+      // Use the new optimal scheduling API
+      const result = await bookings.findOptimalSchedule(bookingData);
+      setBookingSuccess(true);
+      
+      // Store the suggestions in localStorage so SuggestedTimes can access them
+      if (result && result.suggested_slots) {
+        localStorage.setItem('smartBookingSuggestions', JSON.stringify({
+          bookingId: result.booking_id,
+          suggestions: result.suggested_slots,
+          bestSlot: result.best_slot,
+          confidenceScore: result.confidence_score,
+          message: result.message,
+          trainerName: result.best_slot?.trainer_name || 'Optimal Trainer',
+          totalTrainersEvaluated: result.total_trainers_evaluated || 0,
+          totalSlotsFound: result.total_slots_found || 0
+        }));
+      }
+      
+      // Redirect to suggestions tab to show results
+      setTimeout(() => {
+        alert(`Optimal schedule found! ${result?.message || 'Your booking request has been processed.'}`);
+        // Reset form
+        setPreferences({
+          sessionType: '',
+          duration: 60,
+          preferredDays: [],
+          preferredTimes: [],
+          location: '',
+          frequency: 'weekly'
+        });
+        onTrainerSelect(null);
+        // Trigger tab switch to suggestions
+        if (onBookingComplete) {
+          onBookingComplete();
+        }
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Optimal scheduling failed:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.status,
+        response: error.response
+      });
+      
+      // More specific error message
+      let errorMessage = 'Failed to find optimal schedule. Please try again.';
+      if (error.message?.includes('Failed to fetch')) {
+        errorMessage = 'Cannot connect to server. Please make sure the backend is running.';
+      } else if (error.status === 401) {
+        errorMessage = 'Please log in to book sessions.';
+      } else if (error.status === 400) {
+        errorMessage = error.message || 'No available time slots found for your criteria.';
+      }
+      
+      alert(errorMessage);
+    }
+  };
+
   if (isFinding) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -108,14 +224,19 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
           <i data-feather="user" className="h-5 w-5 mr-2 text-indigo-600"></i>
-          Choose Your Preferred Trainer
+          Choose Your Preferred Trainer (Optional)
         </h3>
         <p className="text-sm text-gray-600 mb-6">
-          Select a trainer to find optimal scheduling times, or let us suggest the best trainer for your needs.
+          Select a specific trainer to find optimal scheduling times, or leave unselected to let our algorithm find the best trainer for your needs across all available trainers.
         </p>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {mockTrainers.map((trainer) => (
+        {loadingTrainers ? (
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+          </div>
+        ) : Array.isArray(availableTrainers) && availableTrainers.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {availableTrainers.map((trainer) => (
             <div
               key={trainer.id}
               className={`p-4 border-2 rounded-lg cursor-pointer transition-smooth ${
@@ -127,19 +248,19 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
             >
               <div className="flex items-center space-x-3">
                 <img
-                  src={trainer.avatar}
-                  alt={trainer.name}
+                  src={trainer.user_avatar || trainer.avatar || 'https://i.pravatar.cc/200'}
+                  alt={trainer.user_name || trainer.name}
                   className="w-12 h-12 rounded-full"
                 />
                 <div className="flex-1">
-                  <h4 className="font-medium text-gray-900">{trainer.name}</h4>
-                  <p className="text-sm text-gray-600">{trainer.specialty}</p>
+                  <h4 className="font-medium text-gray-900">{trainer.user_name || trainer.name}</h4>
+                  <p className="text-sm text-gray-600">{trainer.specialty || trainer.bio || 'Personal Trainer'}</p>
                   <div className="flex items-center mt-1">
                     <div className="flex text-yellow-400 text-xs">
-                      {'★'.repeat(Math.floor(trainer.rating))}
+                      {'★'.repeat(Math.floor(trainer.rating || 5))}
                     </div>
                     <span className="text-xs text-gray-500 ml-1">
-                      {trainer.rating} ({trainer.reviews} reviews)
+                      {trainer.rating || 5} ({trainer.reviews || 10} reviews)
                     </span>
                   </div>
                 </div>
@@ -151,8 +272,17 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
                 </div>
               )}
             </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <div className="mb-4">
+              <i data-feather="users" className="h-12 w-12 text-gray-400 mx-auto"></i>
+            </div>
+            <h4 className="text-lg font-medium text-gray-900 mb-2">No Trainers Available</h4>
+            <p className="text-gray-600">There are no trainers available at the moment. Please try again later.</p>
+          </div>
+        )}
       </div>
 
       {/* Session Preferences */}
@@ -282,12 +412,16 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
       <div className="bg-gray-50 rounded-lg p-6">
         <h4 className="font-medium text-gray-900 mb-4">Quick Actions</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="p-4 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-smooth text-left">
+          <button 
+            onClick={handleSmartBooking}
+            disabled={!preferences.sessionType}
+            className="p-4 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-smooth text-left disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <div className="flex items-center space-x-3">
               <i data-feather="zap" className="h-5 w-5 text-indigo-600"></i>
               <div>
-                <div className="font-medium text-gray-900">Smart Suggestions</div>
-                <div className="text-sm text-gray-600">Get AI-powered time recommendations</div>
+                <div className="font-medium text-gray-900">Find Optimal Schedule</div>
+                <div className="text-sm text-gray-600">Greedy algorithm finds best trainer & time</div>
               </div>
             </div>
           </button>

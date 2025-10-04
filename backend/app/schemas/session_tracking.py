@@ -1,7 +1,7 @@
 """
 Pydantic schemas for enhanced session tracking system
 """
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -198,7 +198,7 @@ class FitnessGoalBase(BaseModel):
     unit: str = Field(..., max_length=20)
     start_date: datetime
     target_date: datetime
-    priority: str = Field(default="medium", regex="^(low|medium|high)$")
+    priority: str = Field(default="medium", pattern="^(low|medium|high)$")
     notes: Optional[str] = None
 
 
@@ -213,7 +213,7 @@ class FitnessGoalUpdate(BaseModel):
     target_date: Optional[datetime] = None
     is_achieved: Optional[bool] = None
     notes: Optional[str] = None
-    priority: Optional[str] = Field(None, regex="^(low|medium|high)$")
+    priority: Optional[str] = Field(None, pattern="^(low|medium|high)$")
 
 
 class FitnessGoalResponse(FitnessGoalBase):

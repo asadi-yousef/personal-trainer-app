@@ -1,11 +1,34 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { availability } from '../../lib/api';
 
 /**
  * Availability calendar component for trainer dashboard
  */
 export default function AvailabilityCalendar() {
+  const [trainerAvailability, setTrainerAvailability] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState<string>('');
+
+  // Fetch trainer availability
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      try {
+        setLoading(true);
+        const availabilityData = await availability.getMyAvailability();
+        setTrainerAvailability(availabilityData || []);
+      } catch (error) {
+        console.error('Failed to fetch availability:', error);
+        setTrainerAvailability([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAvailability();
+  }, []);
+
   useEffect(() => {
     const loadFeatherIcons = async () => {
       try {
@@ -18,22 +41,61 @@ export default function AvailabilityCalendar() {
     loadFeatherIcons();
   }, []);
 
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const hours = ['6 AM', '9 AM', '12 PM', '3 PM', '6 PM', '9 PM'];
+  const dayMap = {
+    'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 
+    'Friday': 5, 'Saturday': 6, 'Sunday': 0
+  };
   
-  // Mock availability data
-  const availability = {
-    'Mon': ['9 AM', '3 PM', '6 PM'],
-    'Tue': ['6 AM', '12 PM', '3 PM'],
-    'Wed': ['9 AM', '6 PM'],
-    'Thu': ['6 AM', '9 AM', '3 PM'],
-    'Fri': ['12 PM', '6 PM', '9 PM'],
-    'Sat': ['9 AM', '3 PM'],
-    'Sun': ['6 AM', '12 PM']
+  // Process availability data from backend
+  const availabilityData = trainerAvailability.reduce((acc: any, slot: any) => {
+    const dayName = days[slot.day_of_week];
+    if (!acc[dayName]) acc[dayName] = [];
+    acc[dayName].push({
+      start: slot.start_time,
+      end: slot.end_time,
+      id: slot.id
+    });
+    return acc;
+  }, {});
+
+  const handleAddAvailability = async (day: string, startTime: string, endTime: string) => {
+    try {
+      const dayOfWeek = dayMap[day as keyof typeof dayMap];
+      await availability.create({
+        day_of_week: dayOfWeek,
+        start_time: startTime,
+        end_time: endTime,
+        is_available: true
+      });
+      
+      // Refresh availability data
+      const availabilityData = await availability.getMyAvailability();
+      setTrainerAvailability(availabilityData || []);
+    } catch (error) {
+      console.error('Failed to add availability:', error);
+      alert('Failed to add availability slot');
+    }
+  };
+
+  const handleRemoveAvailability = async (availabilityId: number) => {
+    try {
+      await availability.delete(availabilityId);
+      
+      // Refresh availability data
+      const availabilityData = await availability.getMyAvailability();
+      setTrainerAvailability(availabilityData || []);
+    } catch (error) {
+      console.error('Failed to remove availability:', error);
+      alert('Failed to remove availability slot');
+    }
   };
 
   const isAvailable = (day: string, hour: string) => {
-    return availability[day as keyof typeof availability]?.includes(hour) || false;
+    return availabilityData[day]?.some((slot: any) => 
+      slot.start <= hour && slot.end > hour
+    ) || false;
   };
 
   return (

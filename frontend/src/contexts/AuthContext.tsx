@@ -52,7 +52,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
         }
       } catch (error) {
-        console.error('Auth initialization failed:', error);
+        // Only log if it's not a credential validation error
+        if (!error.message?.includes('Could not validate credentials')) {
+          console.error('Auth initialization failed:', error);
+        }
         // Clear invalid auth data
         auth.logout();
         setUser(null);

@@ -1,7 +1,7 @@
 """
 Pydantic schemas for booking management and scheduling
 """
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from datetime import datetime
 from enum import Enum
@@ -31,15 +31,17 @@ class BookingCreate(BaseModel):
     
     # Recurring options
     is_recurring: bool = False
-    recurring_pattern: Optional[str] = Field(None, regex="^(weekly|biweekly|monthly)$")
+    recurring_pattern: Optional[str] = Field(None, pattern="^(weekly|biweekly|monthly)$")
     
-    @validator('preferred_end_date')
-    def end_date_after_start_date(cls, v, values):
-        if v and 'preferred_start_date' in values and v <= values['preferred_start_date']:
+    @field_validator('preferred_end_date')
+    @classmethod
+    def end_date_after_start_date(cls, v, info):
+        if v and hasattr(info, 'data') and 'preferred_start_date' in info.data and v <= info.data['preferred_start_date']:
             raise ValueError('End date must be after start date')
         return v
     
-    @validator('preferred_times')
+    @field_validator('preferred_times')
+    @classmethod
     def validate_time_format(cls, v):
         if v:
             import re
@@ -59,7 +61,7 @@ class BookingUpdate(BaseModel):
     status: Optional[BookingStatus] = None
     confirmed_date: Optional[datetime] = None
     is_recurring: Optional[bool] = None
-    recurring_pattern: Optional[str] = Field(None, regex="^(weekly|biweekly|monthly)$")
+    recurring_pattern: Optional[str] = Field(None, pattern="^(weekly|biweekly|monthly)$")
 
 
 class BookingResponse(BaseModel):
@@ -74,7 +76,7 @@ class BookingResponse(BaseModel):
     status: BookingStatus
     preferred_start_date: Optional[datetime]
     preferred_end_date: Optional[datetime]
-    preferred_times: Optional[List[str]]
+    preferred_times: Optional[List[str]] = None
     confirmed_date: Optional[datetime]
     priority_score: float
     is_recurring: bool
@@ -99,7 +101,7 @@ class BookingConfirmation(BaseModel):
 
 class SmartBookingRequest(BaseModel):
     """Schema for smart booking with automatic scheduling"""
-    trainer_id: int
+    trainer_id: Optional[int] = None  # Optional - if None, finds best trainer
     session_type: str = Field(..., min_length=1, max_length=100)
     duration_minutes: int = Field(..., ge=30, le=240)
     location: Optional[str] = Field(None, max_length=255)
@@ -117,9 +119,10 @@ class SmartBookingRequest(BaseModel):
     allow_weekends: bool = True
     allow_evenings: bool = True
     
-    @validator('latest_date')
-    def latest_after_earliest(cls, v, values):
-        if 'earliest_date' in values and v <= values['earliest_date']:
+    @field_validator('latest_date')
+    @classmethod
+    def latest_after_earliest(cls, v, info):
+        if hasattr(info, 'data') and 'earliest_date' in info.data and v <= info.data['earliest_date']:
             raise ValueError('Latest date must be after earliest date')
         return v
 

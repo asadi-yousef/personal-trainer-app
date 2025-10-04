@@ -89,6 +89,58 @@ async def create_weekly_availability(
     )
 
 
+@router.get("/me", response_model=List[TrainerAvailabilityResponse])
+async def get_my_availability(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get the current user's availability schedule (if they are a trainer)"""
+    # Check if user is a trainer
+    trainer = db.query(Trainer).filter(Trainer.user_id == current_user.id).first()
+    if not trainer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trainer profile not found"
+        )
+    
+    # Get availability schedule
+    availability = db.query(TrainerAvailability).filter(
+        TrainerAvailability.trainer_id == trainer.id,
+        TrainerAvailability.is_available == True
+    ).order_by(TrainerAvailability.day_of_week, TrainerAvailability.start_time).all()
+    
+    return availability
+
+@router.post("/", response_model=TrainerAvailabilityResponse)
+async def create_availability(
+    availability_data: TrainerAvailabilityCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new availability entry for the current user (if they are a trainer)"""
+    # Check if user is a trainer
+    trainer = db.query(Trainer).filter(Trainer.user_id == current_user.id).first()
+    if not trainer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trainer profile not found"
+        )
+    
+    # Create availability entry
+    availability = TrainerAvailability(
+        trainer_id=trainer.id,
+        day_of_week=availability_data.day_of_week,
+        start_time=availability_data.start_time,
+        end_time=availability_data.end_time,
+        is_available=availability_data.is_available
+    )
+    
+    db.add(availability)
+    db.commit()
+    db.refresh(availability)
+    
+    return availability
+
 @router.get("/trainer/{trainer_id}/schedule", response_model=List[TrainerAvailabilityResponse])
 async def get_trainer_availability(
     trainer_id: int,

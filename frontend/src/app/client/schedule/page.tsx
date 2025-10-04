@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Sidebar from '../../../components/Sidebar';
 import PageHeader from '../../../components/PageHeader';
 import OptimalScheduleFinder from '../../../components/Client/OptimalScheduleFinder';
@@ -12,11 +13,41 @@ import { mockUser } from '../../../lib/data';
  * Customer scheduling page with optimal algorithm for finding best times
  */
 export default function CustomerSchedulePage() {
+  const searchParams = useSearchParams();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'find' | 'preferences' | 'suggestions'>('find');
   const [selectedTrainer, setSelectedTrainer] = useState<string | null>(null);
   const [isFindingOptimal, setIsFindingOptimal] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+
+  // Check backend status
+  useEffect(() => {
+    const checkBackendStatus = async () => {
+      try {
+        const response = await fetch('http://127.0.0.1:8000/health');
+        if (response.ok) {
+          setBackendStatus('online');
+        } else {
+          setBackendStatus('offline');
+        }
+      } catch (error) {
+        console.error('Backend health check failed:', error);
+        setBackendStatus('offline');
+      }
+    };
+    
+    checkBackendStatus();
+  }, []);
+
+  // Check if trainer was pre-selected from trainers page
+  useEffect(() => {
+    const trainerParam = searchParams.get('trainer');
+    if (trainerParam) {
+      setSelectedTrainer(trainerParam);
+      setActiveTab('find'); // Switch to find tab when trainer is pre-selected
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     setMounted(true);
@@ -83,6 +114,33 @@ export default function CustomerSchedulePage() {
         <PageHeader user={mockUser} />
 
         <div className="p-6">
+          {/* Backend Status Indicator */}
+          {backendStatus === 'offline' && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6" data-aos="fade-down">
+              <div className="flex items-center">
+                <i data-feather="alert-triangle" className="h-5 w-5 text-red-600 mr-2"></i>
+                <div>
+                  <h3 className="text-sm font-medium text-red-800">Backend Server Offline</h3>
+                  <p className="text-sm text-red-700 mt-1">
+                    Cannot connect to the server. Please make sure the backend is running on http://127.0.0.1:8000
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {backendStatus === 'checking' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6" data-aos="fade-down">
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2"></div>
+                <div>
+                  <h3 className="text-sm font-medium text-yellow-800">Checking Server Status</h3>
+                  <p className="text-sm text-yellow-700 mt-1">Verifying connection to backend server...</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Page Header */}
           <div className="bg-white rounded-xl shadow-lg p-6 mb-8" data-aos="fade-up">
             <div className="flex flex-col lg:flex-row items-center justify-between">
@@ -142,6 +200,7 @@ export default function CustomerSchedulePage() {
                 selectedTrainer={selectedTrainer}
                 onTrainerSelect={setSelectedTrainer}
                 isFinding={isFindingOptimal}
+                onBookingComplete={() => setActiveTab('suggestions')}
               />
             )}
 
@@ -158,6 +217,8 @@ export default function CustomerSchedulePage() {
     </div>
   );
 }
+
+
 
 
 

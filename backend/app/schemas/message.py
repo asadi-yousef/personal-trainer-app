@@ -1,7 +1,7 @@
 """
 Pydantic schemas for messaging system
 """
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -174,7 +174,7 @@ class NotificationBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     content: str = Field(..., min_length=1)
     notification_type: MessageType = MessageType.GENERAL
-    priority: str = Field(default="normal", regex="^(low|normal|high|urgent)$")
+    priority: str = Field(default="normal", pattern="^(low|normal|high|urgent)$")
     scheduled_for: Optional[datetime] = None
     
     # Related entities

@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Trainer } from '../../lib/data';
+import { useAuth } from '../../contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 
 interface TrainerCardProps {
   trainer: Trainer;
@@ -29,6 +31,10 @@ const mapApiTrainerToComponent = (apiTrainer: any) => ({
  * Trainer card component displaying trainer information
  */
 export default function TrainerCard({ trainer }: TrainerCardProps) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [isBooking, setIsBooking] = useState(false);
+  
   // Map API data to component format
   const mappedTrainer = mapApiTrainerToComponent(trainer);
   useEffect(() => {
@@ -53,6 +59,43 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
       'Prenatal Fitness': 'bg-pink-100 text-pink-800',
     };
     return colors[specialty as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+  };
+
+  const handleFindOptimalTimes = () => {
+    if (!user) {
+      alert('Please log in to book sessions with trainers');
+      return;
+    }
+    
+    // Store trainer info for optimal scheduling
+    localStorage.setItem('selectedTrainer', JSON.stringify({
+      id: mappedTrainer.id,
+      name: mappedTrainer.name,
+      specialty: mappedTrainer.specialty,
+      rating: mappedTrainer.rating,
+      price: mappedTrainer.price
+    }));
+    
+    // Navigate to optimal scheduling modal/page
+    router.push('/optimal-scheduling');
+  };
+
+  const handleBrowseAvailable = () => {
+    if (!user) {
+      alert('Please log in to book sessions with trainers');
+      return;
+    }
+    
+    // Clear any selected trainer for general browsing
+    localStorage.removeItem('selectedTrainer');
+    
+    // Navigate to optimal scheduling for all trainers
+    router.push('/optimal-scheduling');
+  };
+
+  const handleViewProfile = () => {
+    // Navigate to trainer profile page
+    router.push(`/trainers/${mappedTrainer.id}`);
   };
 
   return (
@@ -121,18 +164,29 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
               <span className="text-2xl font-bold text-indigo-600">${mappedTrainer.price}</span>
               <span className="text-gray-600 text-sm ml-1">/session</span>
             </div>
-            <button className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-smooth focus-ring">
+            <button 
+              onClick={handleViewProfile}
+              className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-smooth focus-ring"
+            >
               View Profile
             </button>
           </div>
           
           {/* Smart Scheduling Actions */}
           <div className="flex space-x-2">
-            <button className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:from-indigo-600 hover:to-purple-700 transition-smooth focus-ring text-sm flex items-center justify-center">
+            <button 
+              onClick={handleFindOptimalTimes}
+              disabled={isBooking}
+              className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:from-indigo-600 hover:to-purple-700 transition-smooth focus-ring text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <i data-feather="zap" className="h-4 w-4 mr-2"></i>
-              Find Optimal Times
+              {isBooking ? 'Booking...' : 'Find Optimal Times'}
             </button>
-            <button className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-200 transition-smooth focus-ring text-sm flex items-center justify-center">
+            <button 
+              onClick={handleBrowseAvailable}
+              disabled={isBooking}
+              className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-200 transition-smooth focus-ring text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <i data-feather="calendar" className="h-4 w-4 mr-2"></i>
               Browse Available
             </button>

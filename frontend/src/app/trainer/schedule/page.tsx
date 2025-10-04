@@ -6,7 +6,7 @@ import PageHeader from '../../../components/PageHeader';
 import TrainerScheduleOptimizer from '../../../components/Trainer/TrainerScheduleOptimizer';
 import ClientScheduleView from '../../../components/Trainer/ClientScheduleView';
 import ScheduleAnalytics from '../../../components/Trainer/ScheduleAnalytics';
-import { mockTrainerUser } from '../../../lib/data';
+import { useAuth } from '../../../contexts/AuthContext';
 
 /**
  * Trainer scheduling page for optimizing client schedules and managing availability
@@ -16,6 +16,7 @@ export default function TrainerSchedulePage() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'optimize' | 'clients' | 'analytics'>('optimize');
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -78,7 +79,7 @@ export default function TrainerSchedulePage() {
       {/* Main Content */}
       <div className={`main-content transition-all duration-300 ${sidebarCollapsed ? 'content-collapsed' : 'content-expanded'}`}>
         {/* Top Bar */}
-        <PageHeader user={mockTrainerUser} />
+        <PageHeader user={user} />
 
         <div className="p-6">
           {/* Page Header */}
