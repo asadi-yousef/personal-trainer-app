@@ -86,11 +86,17 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
       return;
     }
     
-    // Clear any selected trainer for general browsing
-    localStorage.removeItem('selectedTrainer');
+    // Store trainer info for direct booking
+    localStorage.setItem('selectedTrainer', JSON.stringify({
+      id: mappedTrainer.id,
+      name: mappedTrainer.name,
+      specialty: mappedTrainer.specialty,
+      rating: mappedTrainer.rating,
+      price: mappedTrainer.price
+    }));
     
-    // Navigate to optimal scheduling for all trainers
-    router.push('/optimal-scheduling');
+    // Navigate to direct booking page
+    router.push('/direct-booking');
   };
 
   const handleViewProfile = () => {

@@ -5,6 +5,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ClientWrapper from "../components/ClientWrapper";
 import { AuthProvider } from "../contexts/AuthContext";
+import "../utils/featherFix.js";
 
 const inter = Inter({
   subsets: ["latin"],

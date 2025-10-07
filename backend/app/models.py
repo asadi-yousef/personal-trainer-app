@@ -650,6 +650,14 @@ class BookingStatus(str, enum.Enum):
     NO_SHOW = "no_show"
 
 
+class BookingRequestStatus(str, enum.Enum):
+    """Booking request status enumeration"""
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+
+
 class Booking(Base):
     """Enhanced booking model for session requests"""
     __tablename__ = "bookings"
@@ -704,6 +712,111 @@ class Booking(Base):
             self.preferred_times = json.dumps(value)
         else:
             self.preferred_times = None
+
+
+class BookingRequest(Base):
+    """Booking request model for client requests that need trainer approval"""
+    __tablename__ = "booking_requests"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    trainer_id = Column(Integer, ForeignKey("trainers.id"), nullable=False)
+    
+    # Request details
+    session_type = Column(String(100), nullable=False)
+    duration_minutes = Column(Integer, nullable=False)
+    location = Column(String(255))
+    special_requests = Column(Text)
+    
+    # Time preferences
+    preferred_start_date = Column(DateTime(timezone=True))
+    preferred_end_date = Column(DateTime(timezone=True))
+    preferred_times = Column(Text)  # JSON array
+    avoid_times = Column(Text)  # JSON array
+    
+    # Additional preferences
+    allow_weekends = Column(Boolean, default=True)
+    allow_evenings = Column(Boolean, default=True)
+    is_recurring = Column(Boolean, default=False)
+    recurring_pattern = Column(String(50))
+    
+    # Status and metadata
+    status = Column(Enum(BookingRequestStatus), default=BookingRequestStatus.PENDING)
+    confirmed_date = Column(DateTime(timezone=True))
+    alternative_dates = Column(Text)  # JSON array of alternative dates
+    notes = Column(Text)
+    rejection_reason = Column(Text)
+    
+    # Expiration
+    expires_at = Column(DateTime(timezone=True))
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    client = relationship("User")
+    trainer = relationship("Trainer")
+    
+    # Properties for JSON fields
+    @property
+    def preferred_times_list(self):
+        """Parse preferred_times JSON string to list"""
+        if self.preferred_times:
+            try:
+                import json
+                return json.loads(self.preferred_times)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return []
+    
+    @preferred_times_list.setter
+    def preferred_times_list(self, value):
+        """Set preferred_times from list"""
+        if value:
+            import json
+            self.preferred_times = json.dumps(value)
+        else:
+            self.preferred_times = None
+    
+    @property
+    def avoid_times_list(self):
+        """Parse avoid_times JSON string to list"""
+        if self.avoid_times:
+            try:
+                import json
+                return json.loads(self.avoid_times)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return []
+    
+    @avoid_times_list.setter
+    def avoid_times_list(self, value):
+        """Set avoid_times from list"""
+        if value:
+            import json
+            self.avoid_times = json.dumps(value)
+        else:
+            self.avoid_times = None
+    
+    @property
+    def alternative_dates_list(self):
+        """Parse alternative_dates JSON string to list"""
+        if self.alternative_dates:
+            try:
+                import json
+                return json.loads(self.alternative_dates)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return []
+    
+    @alternative_dates_list.setter
+    def alternative_dates_list(self, value):
+        """Set alternative_dates from list"""
+        if value:
+            import json
+            self.alternative_dates = json.dumps(value)
+        else:
+            self.alternative_dates = None
 
 
 class TrainerAvailability(Base):

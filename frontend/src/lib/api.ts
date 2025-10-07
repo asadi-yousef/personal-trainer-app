@@ -603,3 +603,12 @@ export const timeSlots = {
   delete: (slotId: number) => apiClient.request(`/time-slots/${slotId}`, { method: 'DELETE' }),
 };
 
+export const bookingRequests = {
+  getAll: (params?: any) => apiClient.request(`/booking-requests${params ? '?' + new URLSearchParams(params).toString() : ''}`),
+  getById: (id: number) => apiClient.request(`/booking-requests/${id}`),
+  create: (data: any) => apiClient.request('/booking-requests', { method: 'POST', body: JSON.stringify(data) }),
+  approve: (id: number, data: any) => apiClient.request(`/booking-requests/${id}/approve`, { method: 'PUT', body: JSON.stringify(data) }),
+  update: (id: number, data: any) => apiClient.request(`/booking-requests/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  cancel: (id: number) => apiClient.request(`/booking-requests/${id}`, { method: 'DELETE' }),
+};
+

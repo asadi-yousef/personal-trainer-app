@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bookings } from '../../lib/api';
+import { bookings, bookingRequests } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 /**
@@ -144,17 +144,23 @@ export default function SuggestedTimes() {
       // Get trainer ID from the suggestion data
       const trainerId = suggestion.trainer_id || 1;
 
-      const bookingData = {
+      // Create a booking request for the optimal slot
+      const bookingRequestData = {
         trainer_id: trainerId,
-        preferred_dates: suggestion.date,
-        session_type: suggestion.sessionType,
+        session_type: suggestion.sessionType || 'Personal Training',
         duration_minutes: 60,
-        location: suggestion.location,
-        special_requests: `AI Suggested Time: ${suggestion.time}-${suggestion.endTime}`
+        location: suggestion.location || 'Gym',
+        special_requests: `AI Suggested Time: ${suggestion.time}-${suggestion.endTime}`,
+        preferred_start_date: new Date(`${suggestion.date}T${suggestion.time}:00`).toISOString(),
+        preferred_end_date: new Date(`${suggestion.date}T${suggestion.endTime}:00`).toISOString(),
+        preferred_times: [suggestion.time],
+        allow_weekends: true,
+        allow_evenings: true,
+        is_recurring: false
       };
 
-      await bookings.create(bookingData);
-      alert(`Booking request sent for ${suggestion.date} at ${suggestion.time}!`);
+      await bookingRequests.create(bookingRequestData);
+      alert(`Booking request sent for ${suggestion.date} at ${suggestion.time}! The trainer will review and confirm your booking.`);
       
       // Remove the suggestion from the list after booking
       setSuggestions(prev => prev.filter(s => s.id !== suggestion.id));
@@ -166,7 +172,7 @@ export default function SuggestedTimes() {
       }
     } catch (error) {
       console.error('Failed to book session:', error);
-      alert('Failed to book session. Please try again.');
+      alert('Failed to send booking request. Please try again.');
     }
   };
 
@@ -309,7 +315,7 @@ export default function SuggestedTimes() {
                     onClick={() => handleBookSession(suggestion)}
                     className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus-ring transition-smooth"
                   >
-                    Book This Time
+                    Request This Time
                   </button>
                   <button className="px-6 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus-ring transition-smooth">
                     View Details

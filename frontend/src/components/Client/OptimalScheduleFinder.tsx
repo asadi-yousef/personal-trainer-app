@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { trainers, bookings } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useFeatherIcons } from '../../utils/featherIcons';
 
 interface OptimalScheduleFinderProps {
   selectedTrainer: string | null;
@@ -48,17 +49,8 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
     fetchTrainers();
   }, []);
 
-  useEffect(() => {
-    const loadFeatherIcons = async () => {
-      try {
-        const feather = (await import('feather-icons')).default;
-        feather.replace();
-      } catch (error) {
-        console.error('Failed to load feather icons:', error);
-      }
-    };
-    loadFeatherIcons();
-  }, []);
+  // Use safe feather icon replacement
+  useFeatherIcons([]);
 
   const sessionTypes = [
     'Strength Training',
@@ -426,7 +418,10 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
             </div>
           </button>
 
-          <button className="p-4 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-smooth text-left">
+          <button 
+            onClick={() => router.push('/direct-booking')}
+            className="p-4 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-smooth text-left"
+          >
             <div className="flex items-center space-x-3">
               <i data-feather="calendar" className="h-5 w-5 text-indigo-600"></i>
               <div>

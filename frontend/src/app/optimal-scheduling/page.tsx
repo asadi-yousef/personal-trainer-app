@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { bookings } from '../../lib/api';
+import { bookings, bookingRequests } from '../../lib/api';
 
 interface SelectedTrainer {
   id: number;
@@ -106,32 +106,36 @@ export default function OptimalSchedulingPage() {
   };
 
   const handleBookSlot = async (slot: OptimalSlot) => {
-    if (!user) return;
+    if (!user) {
+      alert('Please log in to book sessions');
+      return;
+    }
 
     try {
-      const bookingData = {
+      // Create a booking request for the optimal slot
+      const bookingRequestData = {
         trainer_id: slot.trainer_id || selectedTrainer?.id,
+        session_type: 'Personal Training',
+        duration_minutes: duration,
+        location: 'Gym',
+        special_requests: 'Booked via optimal scheduling algorithm',
+        preferred_start_date: new Date(`${slot.date_str}T${slot.start_time_str}:00`).toISOString(),
+        preferred_end_date: new Date(`${slot.date_str}T${slot.end_time_str}:00`).toISOString(),
         preferred_times: [slot.start_time_str],
-        avoid_times: [],
         allow_weekends: true,
         allow_evenings: true,
-        duration_minutes: duration,
-        earliest_date: new Date(slot.date_str).toISOString(),
-        latest_date: new Date(slot.date_str).toISOString(),
-        session_type: 'Personal Training',
-        location: 'Gym',
-        special_requests: 'Booked via optimal scheduling'
+        is_recurring: false
       };
 
-      await bookings.smartBooking(bookingData);
-      alert('Session booked successfully!');
+      await bookingRequests.create(bookingRequestData);
+      alert('Booking request sent successfully! The trainer will review and confirm your booking.');
       
       // Clear suggestions and redirect to bookings
       setSuggestions([]);
       router.push('/client/bookings');
     } catch (err: any) {
       console.error('Error booking slot:', err);
-      alert('Failed to book session: ' + (err.message || 'Unknown error'));
+      alert('Failed to send booking request: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -422,7 +426,7 @@ export default function OptimalSchedulingPage() {
                       onClick={() => handleBookSlot(slot)}
                       className="ml-4 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
                     >
-                      Book Now
+                      Request This Slot
                     </button>
                   </div>
                 </div>
