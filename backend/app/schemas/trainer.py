@@ -46,6 +46,21 @@ class TrainerResponse(TrainerBase):
     is_available: bool
     created_at: datetime
     
+    # New pricing and training fields
+    price_per_hour: Optional[float] = None
+    training_types: Optional[str] = None  # JSON string of training types
+    
+    # Gym information
+    gym_name: Optional[str] = None
+    gym_address: Optional[str] = None
+    gym_city: Optional[str] = None
+    gym_state: Optional[str] = None
+    gym_zip_code: Optional[str] = None
+    gym_phone: Optional[str] = None
+    
+    # Profile completion status
+    profile_completion_status: Optional[str] = None
+    
     # User information
     user_name: str
     user_email: str

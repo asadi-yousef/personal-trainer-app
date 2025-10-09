@@ -98,7 +98,19 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      let error;
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          error = await response.json();
+        } else {
+          const text = await response.text();
+          console.log('Non-JSON error response:', text.substring(0, 200));
+          error = { detail: `HTTP ${response.status}: ${response.statusText}` };
+        }
+      } catch (parseError) {
+        error = { detail: `HTTP ${response.status}: ${response.statusText}` };
+      }
       console.log('API Error Response:', { status: response.status, error, url });
       throw new Error(error.detail || `HTTP ${response.status}`);
     }
@@ -328,11 +340,6 @@ class ApiClient {
     });
   }
 
-  async cancelBooking(bookingId: number): Promise<any> {
-    return this.request(`/bookings/${bookingId}/cancel`, {
-      method: 'PUT',
-    });
-  }
 
   async getBooking(bookingId: number): Promise<any> {
     return this.request(`/bookings/${bookingId}`);
@@ -404,6 +411,19 @@ class ApiClient {
   async deleteMessage(id: number): Promise<any> {
     return this.request(`/messages/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Session management methods
+  async completeSession(sessionId: number): Promise<any> {
+    return this.request(`/sessions/${sessionId}/complete`, {
+      method: 'POST',
+    });
+  }
+
+  async cancelSession(sessionId: number): Promise<any> {
+    return this.request(`/sessions/${sessionId}/cancel`, {
+      method: 'POST',
     });
   }
 
@@ -506,9 +526,179 @@ class ApiClient {
     return this.request(`/messages/conversations/${conversationId}/messages`);
   }
 
+  // Booking Management Methods
+  async createBookingRequest(data: any): Promise<any> {
+    return this.request('/booking-management/booking-request', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async getBookingRequests(): Promise<any> {
+    return this.request('/booking-management/booking-requests');
+  }
+
+  async approveBooking(data: any): Promise<any> {
+    return this.request('/booking-management/approve-booking', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async rejectBooking(data: any): Promise<any> {
+    return this.request('/booking-management/reject-booking', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async getMyBookings(): Promise<any> {
+    return this.request('/booking-management/my-bookings');
+  }
+
+  async cancelBooking(data: any): Promise<any> {
+    return this.request('/booking-management/cancel-booking', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async rescheduleBooking(data: any): Promise<any> {
+    return this.request('/booking-management/reschedule-booking', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async getAvailableSlots(trainerId: number, startDate: string, endDate: string, durationMinutes: number = 60): Promise<any> {
+    return this.request(`/booking-management/available-slots/${trainerId}?start_date=${startDate}&end_date=${endDate}&duration_minutes=${durationMinutes}`);
+  }
+
+  // Time Slots Methods
+  async bookTimeSlot(data: any): Promise<any> {
+    return this.request('/time-slots/book', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async createBulkTimeSlots(data: any): Promise<any> {
+    return this.request('/time-slots/bulk-create', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async getTrainerTimeSlots(trainerId: number, startDate: string, endDate: string): Promise<any> {
+    return this.request(`/time-slots/trainer/${trainerId}/available?date=${startDate}&duration_minutes=60`);
+  }
+
+  async updateTimeSlot(slotId: number, data: any): Promise<any> {
+    return this.request(`/time-slots/${slotId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async deleteTimeSlot(slotId: number): Promise<any> {
+    return this.request(`/time-slots/${slotId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // Booking Requests Methods
+  async getAllBookingRequests(params?: any): Promise<any> {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/booking-requests${queryString}`);
+  }
+
+  async getBookingRequestById(id: number): Promise<any> {
+    return this.request(`/booking-requests/${id}`);
+  }
+
+  async createBookingRequestOld(data: any): Promise<any> {
+    return this.request('/booking-requests', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async approveBookingRequest(id: number, data: any): Promise<any> {
+    return this.request(`/booking-requests/${id}/approve`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async updateBookingRequest(id: number, data: any): Promise<any> {
+    return this.request(`/booking-requests/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async cancelBookingRequest(id: number): Promise<any> {
+    return this.request(`/booking-requests/${id}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // Payment Methods
+  async createPayment(paymentData: {
+    booking_id: number;
+    card_number: string;
+    card_type: string;
+    cardholder_name: string;
+    expiry_month: number;
+    expiry_year: number;
+    cvv: string;
+    billing_address?: string;
+    billing_city?: string;
+    billing_state?: string;
+    billing_zip?: string;
+    notes?: string;
+  }): Promise<any> {
+    return this.request('/payments/', {
+      method: 'POST',
+      body: JSON.stringify(paymentData)
+    });
+  }
+
+  async getPayments(status?: string): Promise<any[]> {
+    const queryString = status ? `?status=${status}` : '';
+    return this.request(`/payments${queryString}`);
+  }
+
+  async getMyPayments(): Promise<any[]> {
+    return this.request('/payments/my-payments');
+  }
+
+  async getPaymentById(paymentId: number): Promise<any> {
+    return this.request(`/payments/${paymentId}`);
+  }
+
+  async getPaymentStats(): Promise<any> {
+    return this.request('/payments/stats');
+  }
+
+  async refundPayment(data: {
+    payment_id: number;
+    refund_reason: string;
+    refund_amount?: number;
+  }): Promise<any> {
+    return this.request('/payments/refund', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
   // Utility methods
   isAuthenticated(): boolean {
     return !!this.token;
+  }
+
+  getToken(): string | null {
+    return this.token;
   }
 
   getStoredUser(): User | null {
@@ -530,6 +720,7 @@ export const auth = {
   logout: () => apiClient.logout(),
   getCurrentUser: () => apiClient.getCurrentUser(),
   isAuthenticated: () => apiClient.isAuthenticated(),
+  getToken: () => apiClient.getToken(),
   getStoredUser: () => apiClient.getStoredUser(),
 };
 
@@ -542,6 +733,8 @@ export const trainers = {
 export const sessions = {
   getAll: (params?: any) => apiClient.getSessions(params),
   createBooking: (data: any) => apiClient.createBooking(data),
+  complete: (sessionId: number) => apiClient.completeSession(sessionId),
+  cancel: (sessionId: number) => apiClient.cancelSession(sessionId),
 };
 
 export const bookings = {
@@ -554,6 +747,23 @@ export const bookings = {
   confirm: (id: number, data: any) => apiClient.confirmBooking(id, data),
   update: (id: number, data: any) => apiClient.updateBooking(id, data),
   cancel: (id: number) => apiClient.cancelBooking(id),
+};
+
+export const bookingManagement = {
+  // Booking requests
+  createBookingRequest: (data: any) => apiClient.createBookingRequest(data),
+  getBookingRequests: () => apiClient.getBookingRequests(),
+  approveBooking: (data: any) => apiClient.approveBooking(data),
+  rejectBooking: (data: any) => apiClient.rejectBooking(data),
+  
+  // My bookings
+  getMyBookings: () => apiClient.getMyBookings(),
+  cancelBooking: (data: any) => apiClient.cancelBooking(data),
+  rescheduleBooking: (data: any) => apiClient.rescheduleBooking(data),
+  
+  // Available slots
+  getAvailableSlots: (trainerId: number, startDate: string, endDate: string, durationMinutes: number = 60) => 
+    apiClient.getAvailableSlots(trainerId, startDate, endDate, durationMinutes),
 };
 
 export const programs = {
@@ -594,21 +804,39 @@ export const availability = {
 
 export const timeSlots = {
   getAvailable: (trainerId: number, date: string, durationMinutes: number = 60) => 
-    apiClient.request(`/time-slots/trainer/${trainerId}/available?date=${date}&duration_minutes=${durationMinutes}`),
-  book: (data: any) => apiClient.request('/time-slots/book', { method: 'POST', body: JSON.stringify(data) }),
-  createBulk: (data: any) => apiClient.request('/time-slots/bulk-create', { method: 'POST', body: JSON.stringify(data) }),
+    fetch(`${API_BASE_URL}/time-slots/trainer/${trainerId}/available?date=${date}&duration_minutes=${durationMinutes}`, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }).then(response => {
+      if (!response.ok) {
+        return response.json().then(error => Promise.reject(new Error(error.detail || `HTTP ${response.status}`)));
+      }
+      return response.json();
+    }),
+  book: (data: any) => apiClient.bookTimeSlot(data),
+  createBulk: (data: any) => apiClient.createBulkTimeSlots(data),
   getTrainerSlots: (trainerId: number, startDate: string, endDate: string) => 
-    apiClient.request(`/time-slots/trainer/${trainerId}?start_date=${startDate}&end_date=${endDate}`),
-  update: (slotId: number, data: any) => apiClient.request(`/time-slots/${slotId}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: (slotId: number) => apiClient.request(`/time-slots/${slotId}`, { method: 'DELETE' }),
+    apiClient.getTrainerTimeSlots(trainerId, startDate, endDate),
+  update: (slotId: number, data: any) => apiClient.updateTimeSlot(slotId, data),
+  delete: (slotId: number) => apiClient.deleteTimeSlot(slotId),
 };
 
 export const bookingRequests = {
-  getAll: (params?: any) => apiClient.request(`/booking-requests${params ? '?' + new URLSearchParams(params).toString() : ''}`),
-  getById: (id: number) => apiClient.request(`/booking-requests/${id}`),
-  create: (data: any) => apiClient.request('/booking-requests', { method: 'POST', body: JSON.stringify(data) }),
-  approve: (id: number, data: any) => apiClient.request(`/booking-requests/${id}/approve`, { method: 'PUT', body: JSON.stringify(data) }),
-  update: (id: number, data: any) => apiClient.request(`/booking-requests/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  cancel: (id: number) => apiClient.request(`/booking-requests/${id}`, { method: 'DELETE' }),
+  getAll: (params?: any) => apiClient.getAllBookingRequests(params),
+  getById: (id: number) => apiClient.getBookingRequestById(id),
+  create: (data: any) => apiClient.createBookingRequestOld(data),
+  approve: (id: number, data: any) => apiClient.approveBookingRequest(id, data),
+  update: (id: number, data: any) => apiClient.updateBookingRequest(id, data),
+  cancel: (id: number) => apiClient.cancelBookingRequest(id),
+};
+
+export const payments = {
+  create: (data: any) => apiClient.createPayment(data),
+  getAll: (status?: string) => apiClient.getPayments(status),
+  getMyPayments: () => apiClient.getMyPayments(),
+  getById: (id: number) => apiClient.getPaymentById(id),
+  getStats: () => apiClient.getPaymentStats(),
+  refund: (data: any) => apiClient.refundPayment(data),
 };
 

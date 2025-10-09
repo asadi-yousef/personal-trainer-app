@@ -30,19 +30,24 @@ export default function DirectBooking() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    
     // Get selected trainer from localStorage
-    if (typeof window !== 'undefined') {
-      const storedTrainer = localStorage.getItem('selectedTrainer');
-      if (storedTrainer) {
+    const storedTrainer = localStorage.getItem('selectedTrainer');
+    if (storedTrainer) {
+      try {
         setSelectedTrainer(JSON.parse(storedTrainer));
+      } catch (error) {
+        console.warn('Failed to parse stored trainer data:', error);
       }
     }
   }, []);
 
-  // Use safe feather icon replacement
-  useFeatherIcons([availableSlots, bookingSuccess]);
+  // Temporarily disable feather icons to prevent DOM conflicts
+  // useFeatherIcons([mounted, availableSlots, bookingSuccess]);
 
   const fetchAvailableSlots = async (date: string) => {
     if (!selectedTrainer || !date) return;
@@ -169,6 +174,17 @@ export default function DirectBooking() {
     
     return dates;
   };
+
+  // Show loading state until component is mounted
+  if (!mounted) {
+    return (
+      <div className="text-center py-16">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">Loading...</h3>
+        <p className="text-gray-600">Preparing booking interface...</p>
+      </div>
+    );
+  }
 
   if (!selectedTrainer) {
     return (
@@ -325,3 +341,4 @@ export default function DirectBooking() {
     </div>
   );
 }
+

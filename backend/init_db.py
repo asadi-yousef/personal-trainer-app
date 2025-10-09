@@ -28,10 +28,10 @@ def create_database():
             # Create database if it doesn't exist
             conn.execute(text(f"CREATE DATABASE IF NOT EXISTS {settings.db_name}"))
             conn.commit()
-            print(f"✅ Database '{settings.db_name}' created or already exists")
+            print(f"Database '{settings.db_name}' created or already exists")
             
     except SQLAlchemyError as e:
-        print(f"❌ Error creating database: {e}")
+        print(f"Error creating database: {e}")
         return False
     
     return True
@@ -41,10 +41,10 @@ def create_all_tables():
     """Create all database tables"""
     try:
         create_tables()
-        print("✅ All database tables created successfully")
+        print("All database tables created successfully")
         return True
     except SQLAlchemyError as e:
-        print(f"❌ Error creating tables: {e}")
+        print(f"Error creating tables: {e}")
         return False
 
 
@@ -53,39 +53,39 @@ def test_connection():
     try:
         with engine.connect() as conn:
             result = conn.execute(text("SELECT 1"))
-            print("✅ Database connection successful")
+            print("Database connection successful")
             return True
     except SQLAlchemyError as e:
-        print(f"❌ Database connection failed: {e}")
+        print(f"Database connection failed: {e}")
         return False
 
 
 def main():
     """Main initialization function"""
-    print("🚀 Initializing FitConnect Database...")
-    print(f"📊 Database: {settings.db_name}")
-    print(f"🏠 Host: {settings.db_host}:{settings.db_port}")
-    print(f"👤 User: {settings.db_user}")
+    print("Initializing FitConnect Database...")
+    print(f"Database: {settings.db_name}")
+    print(f"Host: {settings.db_host}:{settings.db_port}")
+    print(f"User: {settings.db_user}")
     print("-" * 50)
     
     # Step 1: Create database
     if not create_database():
-        print("❌ Failed to create database")
+        print("Failed to create database")
         return
     
     # Step 2: Test connection
     if not test_connection():
-        print("❌ Failed to connect to database")
+        print("Failed to connect to database")
         return
     
     # Step 3: Create tables
     if not create_all_tables():
-        print("❌ Failed to create tables")
+        print("Failed to create tables")
         return
     
     print("-" * 50)
-    print("🎉 Database initialization completed successfully!")
-    print("📋 Next steps:")
+    print("Database initialization completed successfully!")
+    print("Next steps:")
     print("   1. Run: alembic revision --autogenerate -m 'Initial migration'")
     print("   2. Run: alembic upgrade head")
     print("   3. Start the FastAPI server")

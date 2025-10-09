@@ -5,12 +5,16 @@ import Sidebar from '../../components/Sidebar';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/Cards/StatCard';
 import BookingManager from '../../components/Trainer/BookingManager';
+import BookingRequestManager from '../../components/Trainer/BookingRequestManager';
 import AvailabilityManager from '../../components/Trainer/AvailabilityManager';
 import ProgramManager from '../../components/Trainer/ProgramManager';
+import TrainerOptimalScheduler from '../../components/Trainer/TrainerOptimalScheduler';
+import ScheduleAnalytics from '../../components/Trainer/ScheduleAnalytics';
 import ChatInterface from '../../components/Messaging/ChatInterface';
 import { mockTrainerStats, mockTrainerBookings, mockTrainerPrograms } from '../../lib/data';
 import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
 import { apiClient, bookings, programs, analytics } from '../../lib/api';
+import ProfileCompletionCheck from '../../components/Trainer/ProfileCompletionCheck';
 
 /**
  * Trainer dashboard page with sidebar and main content
@@ -250,17 +254,35 @@ function TrainerDashboardContent() {
                 <BookingManager />
               </div>
 
+              {/* Booking Requests */}
+              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="50">
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">Booking Requests</h2>
+                <BookingRequestManager />
+              </div>
+
               {/* Availability Calendar */}
               <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="100">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Availability Calendar</h2>
                 <AvailabilityManager />
               </div>
+
+              {/* Optimal Schedule Finder */}
+              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="150">
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">Optimal Schedule Finder</h2>
+                <TrainerOptimalScheduler />
+              </div>
             </div>
 
             {/* Right Column */}
             <div className="space-y-8">
-              {/* Program Management */}
+              {/* Schedule Analytics */}
               <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="200">
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">Schedule Analytics</h2>
+                <ScheduleAnalytics />
+              </div>
+
+              {/* Program Management */}
+              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="250">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Program Management</h2>
                 <ProgramManager />
               </div>
@@ -306,7 +328,9 @@ function TrainerDashboardContent() {
 export default function TrainerDashboard() {
   return (
     <ProtectedRoute requiredRole="trainer">
-      <TrainerDashboardContent />
+      <ProfileCompletionCheck>
+        <TrainerDashboardContent />
+      </ProfileCompletionCheck>
     </ProtectedRoute>
   );
 }

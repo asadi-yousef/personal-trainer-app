@@ -56,14 +56,16 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         
         # If user is a trainer, create trainer profile automatically
         if db_user.role == UserRole.TRAINER:
-            from app.models import Trainer
+            from app.models import Trainer, ProfileCompletionStatus
             trainer_profile = Trainer(
                 user_id=db_user.id,
                 specialty="Strength Training",  # Default specialty
-                price_per_session=50.0,  # Default price
+                price_per_session=50.0,  # Keep for backward compatibility
+                price_per_hour=0.0,  # Will be set during profile completion
                 bio="New trainer - profile setup required",
                 experience_years=0,
-                is_available=True
+                is_available=True,
+                profile_completion_status=ProfileCompletionStatus.INCOMPLETE
             )
             db.add(trainer_profile)
             db.commit()

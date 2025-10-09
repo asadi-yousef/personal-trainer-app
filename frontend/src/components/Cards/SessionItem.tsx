@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { Session } from '../../lib/data';
+import { useFeatherIcons } from '../../utils/featherIcons';
 
 interface SessionItemProps {
   session: Session;
@@ -11,17 +12,8 @@ interface SessionItemProps {
  * Session item component displaying upcoming session details
  */
 export default function SessionItem({ session }: SessionItemProps) {
-  useEffect(() => {
-    const loadFeatherIcons = async () => {
-      try {
-        const feather = (await import('feather-icons')).default;
-        feather.replace();
-      } catch (error) {
-        console.error('Failed to load feather icons:', error);
-      }
-    };
-    loadFeatherIcons();
-  }, []);
+  // Temporarily disable feather icons to prevent DOM conflicts
+  // useFeatherIcons([session]);
 
   const getStatusColor = (status: string) => {
     const colors = {

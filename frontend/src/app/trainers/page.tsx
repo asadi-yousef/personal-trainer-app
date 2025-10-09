@@ -6,6 +6,7 @@ import TrainerCard from '../../components/Trainers/TrainerCard';
 import Filters from '../../components/Trainers/Filters';
 import Pagination from '../../components/Trainers/Pagination';
 import { trainers } from '../../lib/api';
+import { useFeatherIcons } from '../../utils/featherIcons';
 
 /**
  * Trainers page with filtering and pagination
@@ -56,6 +57,9 @@ export default function TrainersPage() {
     fetchTrainers();
   }, [currentPage, selectedSpecialty, selectedAvailability]);
 
+  // Use safe feather icon replacement
+  useFeatherIcons([trainersData, loading, error]);
+
   useEffect(() => {
     // Initialize AOS animations
     const initAOS = async () => {
@@ -67,14 +71,7 @@ export default function TrainersPage() {
       });
     };
 
-    // Initialize feather icons
-    const initFeather = async () => {
-      const feather = (await import('feather-icons')).default;
-      feather.replace();
-    };
-
     initAOS();
-    initFeather();
   }, []);
 
   // Reset to first page when filters change

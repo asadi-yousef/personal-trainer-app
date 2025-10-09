@@ -57,6 +57,45 @@ class Specialty(str, enum.Enum):
     PRENATAL_FITNESS = "Prenatal Fitness"
 
 
+class TrainingType(str, enum.Enum):
+    """Training type enumeration for detailed trainer services"""
+    CALISTHENICS = "Calisthenics"
+    GYM_WEIGHTS = "Gym Weights"
+    CARDIO = "Cardio"
+    YOGA = "Yoga"
+    PILATES = "Pilates"
+    CROSSFIT = "CrossFit"
+    FUNCTIONAL = "Functional Training"
+    STRENGTH = "Strength Training"
+    ENDURANCE = "Endurance Training"
+    FLEXIBILITY = "Flexibility Training"
+    SPORTS_SPECIFIC = "Sports Specific"
+    REHABILITATION = "Rehabilitation"
+    NUTRITION = "Nutrition Coaching"
+    MENTAL_HEALTH = "Mental Health Coaching"
+
+
+class ProfileCompletionStatus(str, enum.Enum):
+    """Profile completion status enumeration"""
+    INCOMPLETE = "incomplete"
+    COMPLETE = "complete"
+
+
+class LocationType(str, enum.Enum):
+    """Location type enumeration for sessions"""
+    GYM = "gym"
+    HOME = "home"
+    ONLINE = "online"
+
+
+class PaymentStatus(str, enum.Enum):
+    """Payment status enumeration"""
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    REFUNDED = "refunded"
+
+
 class Availability(str, enum.Enum):
     """Availability enumeration"""
     MORNING = "Morning"
@@ -99,13 +138,26 @@ class Trainer(Base):
     specialty = Column(Enum(Specialty), nullable=False)
     rating = Column(Float, default=0.0)
     reviews_count = Column(Integer, default=0)
-    price_per_session = Column(Float, nullable=False)
+    price_per_session = Column(Float, nullable=False)  # Keep for backward compatibility
+    price_per_hour = Column(Float, nullable=False, default=0.0)  # New hourly pricing
     bio = Column(Text)
     cover_image = Column(String(500))
     experience_years = Column(Integer, default=0)
     certifications = Column(Text)  # JSON string of certifications
     availability = Column(Text)  # JSON string of availability
-    location = Column(String(255))
+    location = Column(String(255))  # Keep for backward compatibility
+    
+    # New fields for registration completion
+    training_types = Column(Text)  # JSON array of TrainingType enums
+    gym_name = Column(String(255))
+    gym_address = Column(Text)
+    gym_city = Column(String(100))
+    gym_state = Column(String(50))
+    gym_zip_code = Column(String(20))
+    gym_phone = Column(String(20))
+    profile_completion_status = Column(Enum(ProfileCompletionStatus), default=ProfileCompletionStatus.INCOMPLETE)
+    profile_completion_date = Column(DateTime(timezone=True), nullable=True)
+    
     is_available = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -115,6 +167,47 @@ class Trainer(Base):
     sessions = relationship("Session", back_populates="trainer")
     programs = relationship("Program", back_populates="trainer")
     availability_schedule = relationship("TrainerAvailability", back_populates="trainer")
+    payments = relationship("Payment", back_populates="trainer")
+    
+    # Properties for JSON fields
+    @property
+    def training_types_list(self):
+        """Parse training_types JSON string to list"""
+        if self.training_types:
+            try:
+                import json
+                return json.loads(self.training_types)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return []
+    
+    @training_types_list.setter
+    def training_types_list(self, value):
+        """Set training_types from list"""
+        if value:
+            import json
+            self.training_types = json.dumps(value)
+        else:
+            self.training_types = None
+    
+    def is_profile_complete(self):
+        """Check if trainer profile is complete"""
+        required_fields = [
+            self.training_types,
+            self.price_per_hour and self.price_per_hour > 0,
+            self.gym_name,
+            self.gym_address,
+            self.bio and len(self.bio) >= 100
+        ]
+        return all(required_fields)
+    
+    def mark_profile_complete(self):
+        """Mark profile as complete and set completion date"""
+        if self.is_profile_complete():
+            self.profile_completion_status = ProfileCompletionStatus.COMPLETE
+            self.profile_completion_date = func.now()
+            return True
+        return False
 
 
 class Program(Base):
@@ -666,7 +759,16 @@ class Booking(Base):
     client_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     trainer_id = Column(Integer, ForeignKey("trainers.id"), nullable=False)
     
-    # Scheduling details
+    # New time-based fields
+    start_time = Column(DateTime(timezone=True), nullable=True)  # Specific start time
+    end_time = Column(DateTime(timezone=True), nullable=True)    # Specific end time
+    training_type = Column(String(100), nullable=True)          # Selected training type
+    price_per_hour = Column(Float, nullable=True)               # Trainer's hourly rate
+    total_cost = Column(Float, nullable=True)                   # Calculated total cost
+    location_type = Column(Enum(LocationType), default=LocationType.GYM)
+    location_address = Column(Text)                             # Specific location address
+    
+    # Scheduling details (keep for backward compatibility)
     preferred_start_date = Column(DateTime(timezone=True))
     preferred_end_date = Column(DateTime(timezone=True))
     preferred_times = Column(Text)  # JSON array of preferred time slots
@@ -691,6 +793,7 @@ class Booking(Base):
     client = relationship("User")
     trainer = relationship("Trainer")
     sessions = relationship("Session", back_populates="booking")
+    payments = relationship("Payment", back_populates="booking")
     
     # Properties for JSON fields
     @property
@@ -728,7 +831,16 @@ class BookingRequest(Base):
     location = Column(String(255))
     special_requests = Column(Text)
     
-    # Time preferences
+    # New time-based fields
+    start_time = Column(DateTime(timezone=True), nullable=True)  # Specific start time
+    end_time = Column(DateTime(timezone=True), nullable=True)    # Specific end time
+    training_type = Column(String(100), nullable=True)          # Selected training type
+    price_per_hour = Column(Float, nullable=True)               # Trainer's hourly rate
+    total_cost = Column(Float, nullable=True)                   # Calculated total cost
+    location_type = Column(Enum(LocationType), default=LocationType.GYM)
+    location_address = Column(Text)                             # Specific location address
+    
+    # Time preferences (keep for backward compatibility and flexible booking)
     preferred_start_date = Column(DateTime(timezone=True))
     preferred_end_date = Column(DateTime(timezone=True))
     preferred_times = Column(Text)  # JSON array
@@ -849,12 +961,25 @@ class TimeSlot(Base):
     is_available = Column(Boolean, default=True)
     is_booked = Column(Boolean, default=False)
     booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=True)
+    locked_until = Column(DateTime(timezone=True), nullable=True)  # For temporary locking during booking
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
     trainer = relationship("Trainer")
     booking = relationship("Booking")
+    
+    # Helper methods
+    def is_locked(self):
+        """Check if slot is currently locked for booking"""
+        if not self.locked_until:
+            return False
+        from datetime import datetime
+        return datetime.now() < self.locked_until
+    
+    def can_be_booked(self):
+        """Check if slot can be booked (available, not booked, not locked)"""
+        return self.is_available and not self.is_booked and not self.is_locked()
 
 
 class ScheduleOptimization(Base):
@@ -873,3 +998,41 @@ class ScheduleOptimization(Base):
     
     # Relationships
     user = relationship("User")
+
+
+class Payment(Base):
+    """Payment model for tracking session payments"""
+    __tablename__ = "payments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    trainer_id = Column(Integer, ForeignKey("trainers.id"), nullable=False)
+    
+    # Payment details
+    amount = Column(Float, nullable=False)
+    currency = Column(String(3), default="USD")
+    status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING, nullable=False)
+    
+    # Simulated credit card details (last 4 digits only for security)
+    card_last_four = Column(String(4), nullable=False)
+    card_type = Column(String(20))  # Visa, Mastercard, Amex, etc.
+    cardholder_name = Column(String(100), nullable=False)
+    
+    # Payment metadata
+    payment_method = Column(String(50), default="credit_card")
+    transaction_id = Column(String(100), unique=True)  # Simulated transaction ID
+    payment_date = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Additional info
+    description = Column(Text)
+    notes = Column(Text)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    booking = relationship("Booking", back_populates="payments")
+    client = relationship("User", foreign_keys=[client_id])
+    trainer = relationship("Trainer", back_populates="payments")

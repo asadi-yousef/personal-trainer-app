@@ -259,6 +259,116 @@ async def update_session(
         trainer_avatar=trainer_user.avatar
     )
 
+@router.post("/{session_id}/complete", status_code=status.HTTP_200_OK)
+async def complete_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Complete a session (Trainers only)"""
+    session = db.query(Session).filter(Session.id == session_id).first()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found"
+        )
+    
+    # Check permissions - only trainer can mark session as complete
+    if current_user.role != UserRole.TRAINER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only trainers can complete sessions"
+        )
+    
+    trainer = db.query(Trainer).filter(Trainer.user_id == current_user.id).first()
+    if not trainer or session.trainer_id != trainer.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to complete this session"
+        )
+    
+    # Check if session is confirmed
+    if session.status != SessionStatus.CONFIRMED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Can only complete confirmed sessions. Current status: {session.status.value}"
+        )
+    
+    # Mark session as completed
+    session.status = SessionStatus.COMPLETED
+    session.actual_end_time = datetime.utcnow()
+    
+    if not session.actual_start_time:
+        session.actual_start_time = datetime.utcnow() - timedelta(minutes=session.duration_minutes)
+    
+    db.commit()
+    db.refresh(session)
+    
+    return {
+        "message": "Session marked as completed successfully",
+        "session_id": session.id,
+        "status": session.status.value
+    }
+
+@router.post("/{session_id}/cancel", status_code=status.HTTP_200_OK)
+async def cancel_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Cancel a session (Clients or Trainers)"""
+    session = db.query(Session).filter(Session.id == session_id).first()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found"
+        )
+    
+    # Check permissions
+    if current_user.role == UserRole.CLIENT:
+        if session.client_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to cancel this session"
+            )
+    elif current_user.role == UserRole.TRAINER:
+        trainer = db.query(Trainer).filter(Trainer.user_id == current_user.id).first()
+        if not trainer or session.trainer_id != trainer.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to cancel this session"
+            )
+    elif current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to cancel this session"
+        )
+    
+    # Check if session can be cancelled
+    if session.status == SessionStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot cancel a completed session"
+        )
+    
+    if session.status == SessionStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session is already cancelled"
+        )
+    
+    # Mark session as cancelled
+    session.status = SessionStatus.CANCELLED
+    
+    db.commit()
+    db.refresh(session)
+    
+    return {
+        "message": "Session cancelled successfully",
+        "session_id": session.id,
+        "status": session.status.value
+    }
+
 @router.post("/bookings", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
 async def create_booking(
     booking_data: BookingCreate,

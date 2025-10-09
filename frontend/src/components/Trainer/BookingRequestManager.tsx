@@ -3,131 +3,145 @@
 import { useState, useEffect } from 'react';
 import { bookingRequests } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { useFeatherIcons } from '../../utils/featherIcons';
 
 interface BookingRequest {
   id: number;
-  client_id: number;
-  trainer_id: number;
+  client_name: string;
+  client_email?: string;
   session_type: string;
   duration_minutes: number;
   location: string;
-  special_requests: string;
-  status: 'pending' | 'approved' | 'rejected' | 'expired';
-  preferred_start_date: string;
-  preferred_end_date: string;
+  special_requests?: string;
+  preferred_start_date?: string;
+  preferred_end_date?: string;
+  start_time?: string;
+  end_time?: string;
+  total_cost?: number;
   preferred_times: string[];
-  avoid_times: string[];
   allow_weekends: boolean;
   allow_evenings: boolean;
   is_recurring: boolean;
-  recurring_pattern: string;
-  confirmed_date?: string;
-  alternative_dates?: string[];
-  notes?: string;
-  rejection_reason?: string;
-  expires_at: string;
+  status: string;
   created_at: string;
-  client_name: string;
-  trainer_name: string;
+  expires_at: string;
 }
 
 export default function BookingRequestManager() {
+  const { user } = useAuth();
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [error, setError] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<BookingRequest | null>(null);
-  const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [approvalData, setApprovalData] = useState({
-    status: 'approved' as 'approved' | 'rejected',
-    confirmed_date: '',
-    alternative_dates: [] as string[],
-    notes: '',
-    rejection_reason: ''
-  });
-  const { user } = useAuth();
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Fetch trainer's booking requests
+  // Approval form state
+  const [approvalNotes, setApprovalNotes] = useState('');
+
+  // Rejection form state
+  const [rejectionReason, setRejectionReason] = useState('');
+
   useEffect(() => {
-    const fetchRequests = async () => {
-      if (!user?.trainer_profile) return;
-      
-      try {
-        setLoading(true);
-        const data = await bookingRequests.getAll({ trainer_id: user.trainer_profile.id });
-        setRequests(data || []);
-      } catch (error) {
-        console.error('Failed to fetch booking requests:', error);
-        setRequests([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchRequests();
-  }, [user]);
+    fetchBookingRequests();
+  }, []);
 
-  // Use safe feather icon replacement
-  useFeatherIcons([requests, showApprovalModal]);
-
-  const handleApproveRequest = async () => {
-    if (!selectedRequest) return;
-
+  const fetchBookingRequests = async () => {
     try {
-      await bookingRequests.approve(selectedRequest.id, approvalData);
-      
-      // Refresh requests
-      const data = await bookingRequests.getAll({ trainer_id: user?.trainer_profile?.id });
-      setRequests(data || []);
-      
-      setShowApprovalModal(false);
-      setSelectedRequest(null);
-      setApprovalData({
-        status: 'approved',
-        confirmed_date: '',
-        alternative_dates: [],
-        notes: '',
-        rejection_reason: ''
-      });
-    } catch (error) {
-      console.error('Failed to approve/reject request:', error);
-      alert('Failed to process request');
+      setLoading(true);
+      const response = await bookingRequests.getAll({ status: 'PENDING' });
+      setRequests(Array.isArray(response) ? response : []);
+    } catch (err: any) {
+      console.error('Failed to fetch booking requests:', err);
+      setError('Failed to load booking requests');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const openApprovalModal = (request: BookingRequest, status: 'approved' | 'rejected') => {
-    setSelectedRequest(request);
-    setApprovalData({
-      status,
-      confirmed_date: request.preferred_start_date ? new Date(request.preferred_start_date).toISOString().slice(0, 16) : '',
-      alternative_dates: [],
-      notes: '',
-      rejection_reason: ''
-    });
-    setShowApprovalModal(true);
+  const handleApprove = async () => {
+    if (!selectedRequest) {
+      setError('No request selected');
+      return;
+    }
+
+    setActionLoading(true);
+    setError(null);
+
+    try {
+      // Use the preferred start date or the specific start_time from the request
+      const confirmedDate = selectedRequest.start_time || selectedRequest.preferred_start_date;
+      
+      if (!confirmedDate) {
+        setError('No date specified in the request');
+        setActionLoading(false);
+        return;
+      }
+
+      await bookingRequests.approve(selectedRequest.id, {
+        status: 'APPROVED',
+        confirmed_date: confirmedDate,
+        notes: approvalNotes,
+        alternative_dates: []
+      });
+
+      // Remove the approved request from the list
+      setRequests(prev => prev.filter(req => req.id !== selectedRequest.id));
+      setSelectedRequest(null);
+      
+      // Reset form
+      setApprovalNotes('');
+      
+    } catch (err: any) {
+      console.error('Failed to approve booking:', err);
+      setError(err.message || 'Failed to approve booking request');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const filteredRequests = requests.filter(request => {
-    if (filter === 'all') return true;
-    return request.status === filter;
-  });
+  const handleReject = async () => {
+    if (!selectedRequest || !rejectionReason.trim()) {
+      setError('Please provide a reason for rejection');
+      return;
+    }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      case 'expired': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+    setActionLoading(true);
+    setError(null);
+
+    try {
+      await bookingRequests.approve(selectedRequest.id, {
+        status: 'REJECTED',
+        rejection_reason: rejectionReason,
+        notes: '',
+        confirmed_date: selectedRequest.preferred_start_date || new Date().toISOString(),
+        alternative_dates: []
+      });
+
+      // Remove the rejected request from the list
+      setRequests(prev => prev.filter(req => req.id !== selectedRequest.id));
+      setSelectedRequest(null);
+      
+      // Reset form
+      setRejectionReason('');
+      
+    } catch (err: any) {
+      console.error('Failed to reject booking:', err);
+      setError(err.message || 'Failed to reject booking request');
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'short',
+      weekday: 'long',
       year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -139,225 +153,224 @@ export default function BookingRequestManager() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading booking requests...</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header with Filters */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-gray-900 flex items-center">
-          <i data-feather="inbox" className="h-5 w-5 mr-2 text-indigo-600"></i>
-          Booking Requests
-        </h3>
-        <div className="flex space-x-2">
-          {['all', 'pending', 'approved', 'rejected'].map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilter(status as any)}
-              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                filter === status
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </button>
-          ))}
-        </div>
+        <h2 className="text-2xl font-bold text-gray-900">Booking Requests</h2>
+        <span className="text-sm text-gray-500">
+          {requests.length} pending request{requests.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
-      {/* Requests List */}
-      <div className="space-y-4">
-        {filteredRequests.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <i data-feather="inbox" className="h-12 w-12 mx-auto mb-4 text-gray-300"></i>
-            <p>No {filter === 'all' ? '' : filter} booking requests found.</p>
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-800">{error}</p>
+        </div>
+      )}
+
+      {requests.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mb-4">
+            <svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
           </div>
-        ) : (
-          filteredRequests.map((request) => (
-            <div key={request.id} className={`bg-white border rounded-lg p-6 ${
-              request.status === 'pending' ? 'border-yellow-200 bg-yellow-50' : 
-              request.status === 'approved' ? 'border-green-200 bg-green-50' :
-              request.status === 'rejected' ? 'border-red-200 bg-red-50' :
-              'border-gray-200'
-            }`}>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No pending requests</h3>
+          <p className="text-gray-600">You don't have any pending booking requests at the moment.</p>
+        </div>
+      ) : (
+        <div className="grid gap-6">
+          {requests.map((request) => (
+            <div
+              key={request.id}
+              className={`bg-white rounded-lg shadow-md p-6 border-l-4 ${
+                isExpired(request.expires_at) 
+                  ? 'border-red-500 bg-red-50' 
+                  : 'border-indigo-500'
+              }`}
+            >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-3">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                      <i data-feather="user" className="h-5 w-5 text-indigo-600"></i>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900">
-                        {request.client_name}
-                      </h4>
-                      <p className="text-sm text-gray-600">{request.session_type}</p>
-                    </div>
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
-                      {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                    </span>
-                    {isExpired(request.expires_at) && request.status === 'pending' && (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {request.client_name}
+                    </h3>
+                    {isExpired(request.expires_at) && (
+                      <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
                         Expired
                       </span>
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <span className="text-gray-500">Duration:</span>
-                      <p className="font-medium">{request.duration_minutes} min</p>
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Session:</span> {request.session_type}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Duration:</span> {request.duration_minutes} minutes
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Location:</span> {request.location}
+                      </p>
                     </div>
                     <div>
-                      <span className="text-gray-500">Location:</span>
-                      <p className="font-medium">{request.location || 'Not specified'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Preferred:</span>
-                      <p className="font-medium">{formatDate(request.preferred_start_date)}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Until:</span>
-                      <p className="font-medium">{formatDate(request.preferred_end_date)}</p>
+                      {request.start_time && request.end_time ? (
+                        // New format: show specific requested time
+                        <>
+                          <p className="text-sm text-gray-600">
+                            <span className="font-medium">Requested Time:</span>
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {formatDate(request.start_time)} at {formatTime(request.start_time)} - {formatTime(request.end_time)}
+                          </p>
+                        </>
+                      ) : (
+                        // Old format: show preferred date range
+                        <>
+                          <p className="text-sm text-gray-600">
+                            <span className="font-medium">Preferred Date Range:</span>
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {request.preferred_start_date && request.preferred_end_date
+                              ? `${formatDate(request.preferred_start_date)} - ${formatDate(request.preferred_end_date)}`
+                              : 'Flexible'
+                            }
+                          </p>
+                          {request.preferred_times && request.preferred_times.length > 0 && (
+                            <p className="text-sm text-gray-600">
+                              <span className="font-medium">Preferred Times:</span> {request.preferred_times.join(', ')}
+                            </p>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
-
-                  {request.preferred_times && request.preferred_times.length > 0 && (
-                    <div className="mb-3">
-                      <span className="text-gray-500 text-sm">Preferred Times:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {request.preferred_times.map((time, index) => (
-                          <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                            {time}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   {request.special_requests && (
-                    <div className="mb-3">
-                      <span className="text-gray-500 text-sm">Special Requests:</span>
-                      <p className="text-sm text-gray-700 mt-1">{request.special_requests}</p>
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Special Requests:</span> {request.special_requests}
+                      </p>
                     </div>
                   )}
 
-                  <div className="text-xs text-gray-500">
-                    Requested: {formatDate(request.created_at)} • 
-                    Expires: {formatDate(request.expires_at)}
+                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <span>Requested: {formatDate(request.created_at)}</span>
+                    <span>Expires: {formatDate(request.expires_at)}</span>
+                    <span>Email: {request.client_email}</span>
                   </div>
                 </div>
-                
-                {request.status === 'pending' && !isExpired(request.expires_at) && (
-                  <div className="ml-4 flex space-x-2">
-                    <button
-                      onClick={() => openApprovalModal(request, 'approved')}
-                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center"
-                    >
-                      <i data-feather="check" className="h-4 w-4 mr-1"></i>
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => openApprovalModal(request, 'rejected')}
-                      className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center"
-                    >
-                      <i data-feather="x" className="h-4 w-4 mr-1"></i>
-                      Reject
-                    </button>
-                  </div>
-                )}
+
+                <div className="ml-6">
+                  <button
+                    onClick={() => setSelectedRequest(request)}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm"
+                  >
+                    Review Request
+                  </button>
+                </div>
               </div>
             </div>
-          ))
-        )}
-      </div>
-
-      {/* Summary */}
-      <div className="bg-gray-50 p-4 rounded-lg">
-        <h4 className="font-medium text-gray-900 mb-2">Request Summary</h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <span className="text-gray-500">Total:</span>
-            <p className="font-medium">{requests.length}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Pending:</span>
-            <p className="font-medium">{requests.filter(r => r.status === 'pending').length}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Approved:</span>
-            <p className="font-medium">{requests.filter(r => r.status === 'approved').length}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Rejected:</span>
-            <p className="font-medium">{requests.filter(r => r.status === 'rejected').length}</p>
-          </div>
+          ))}
         </div>
-      </div>
+      )}
 
-      {/* Approval Modal */}
-      {showApprovalModal && selectedRequest && (
+      {/* Approval/Rejection Modal */}
+      {selectedRequest && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {approvalData.status === 'approved' ? 'Approve' : 'Reject'} Booking Request
+                Review Booking Request from {selectedRequest.client_name}
               </h3>
-              
+
               <div className="space-y-4">
-                {approvalData.status === 'approved' && (
-                  <div>
+                {/* Request Details */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-gray-900 mb-2">Request Details</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="font-medium">Session:</span> {selectedRequest.session_type}</div>
+                    <div><span className="font-medium">Duration:</span> {selectedRequest.duration_minutes} min</div>
+                    <div><span className="font-medium">Location:</span> {selectedRequest.location}</div>
+                    <div><span className="font-medium">Recurring:</span> {selectedRequest.is_recurring ? 'Yes' : 'No'}</div>
+                  </div>
+                </div>
+
+                {/* Approval Section */}
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Approve Request</h4>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 text-green-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-sm font-medium text-green-800">
+                        This will approve the booking for the requested time slot
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Confirmed Date & Time
+                      Notes (Optional)
                     </label>
-                    <input
-                      type="datetime-local"
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                      value={approvalData.confirmed_date}
-                      onChange={(e) => setApprovalData({...approvalData, confirmed_date: e.target.value})}
-                      required
+                    <textarea
+                      value={approvalNotes}
+                      onChange={(e) => setApprovalNotes(e.target.value)}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Any additional notes for the client..."
                     />
                   </div>
-                )}
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {approvalData.status === 'approved' ? 'Notes' : 'Rejection Reason'}
-                  </label>
-                  <textarea
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    rows={3}
-                    value={approvalData.status === 'approved' ? approvalData.notes : approvalData.rejection_reason}
-                    onChange={(e) => setApprovalData({
-                      ...approvalData, 
-                      [approvalData.status === 'approved' ? 'notes' : 'rejection_reason']: e.target.value
-                    })}
-                    placeholder={approvalData.status === 'approved' ? 'Optional notes for the client...' : 'Please explain why this request is being rejected...'}
-                  />
                 </div>
-              </div>
-              
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => setShowApprovalModal(false)}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleApproveRequest}
-                  className={`px-4 py-2 text-white rounded-md transition-colors ${
-                    approvalData.status === 'approved' 
-                      ? 'bg-green-600 hover:bg-green-700' 
-                      : 'bg-red-600 hover:bg-red-700'
-                  }`}
-                >
-                  {approvalData.status === 'approved' ? 'Approve' : 'Reject'}
-                </button>
+
+                {/* Rejection Section */}
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Reject Request</h4>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Reason for Rejection
+                    </label>
+                    <textarea
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Please provide a reason for rejecting this request..."
+                    />
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex space-x-4 pt-4">
+                  <button
+                    onClick={() => setSelectedRequest(null)}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleReject}
+                    disabled={actionLoading || !rejectionReason.trim()}
+                    className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading ? 'Rejecting...' : 'Reject Request'}
+                  </button>
+                  <button
+                    onClick={handleApprove}
+                    disabled={actionLoading}
+                    className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading ? 'Approving...' : 'Approve Request'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

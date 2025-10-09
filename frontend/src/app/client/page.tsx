@@ -6,11 +6,14 @@ import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/Cards/StatCard';
 import SessionItem from '../../components/Cards/SessionItem';
 import ProgramViewer from '../../components/Client/ProgramViewer';
+import MyBookings from '../../components/Client/MyBookings';
 import MessageItem from '../../components/Cards/MessageItem';
 import ChatInterface from '../../components/Messaging/ChatInterface';
+import SessionStatus from '../../components/Client/SessionStatus';
 import { mockStats, mockSessions, mockProgram, mockMessages } from '../../lib/data';
 import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
 import { apiClient, sessions, programs, messages, analytics, goals } from '../../lib/api';
+import { useFeatherIcons } from '../../utils/featherIcons';
 
 /**
  * Client dashboard page with sidebar and main content
@@ -25,7 +28,7 @@ function ClientDashboardContent() {
     sessions: mockSessions,
     program: mockProgram,
     messages: mockMessages,
-    goals: []
+    goals: [] as any[]
   });
   const { user } = useAuth();
 
@@ -170,6 +173,9 @@ function ClientDashboardContent() {
     fetchDashboardData();
   }, [user]);
 
+  // Temporarily disable feather icons to prevent DOM conflicts
+  // useFeatherIcons([dashboardData, sidebarCollapsed, mounted]);
+
   useEffect(() => {
     setMounted(true);
     // Initialize AOS animations
@@ -182,29 +188,8 @@ function ClientDashboardContent() {
       });
     };
 
-    // Initialize feather icons
-    const initFeather = async () => {
-      const feather = (await import('feather-icons')).default;
-      feather.replace();
-    };
-
     initAOS();
-    initFeather();
   }, []);
-
-  useEffect(() => {
-    if (mounted) {
-      const loadFeatherIcons = async () => {
-        try {
-          const feather = (await import('feather-icons')).default;
-          feather.replace();
-        } catch (error) {
-          console.error('Failed to load feather icons:', error);
-        }
-      };
-      loadFeatherIcons();
-    }
-  }, [sidebarCollapsed, mounted]);
 
   const upcomingSessions = dashboardData.sessions.filter(session => 
     session.status === 'Confirmed' || session.status === 'Pending'
@@ -283,15 +268,20 @@ function ClientDashboardContent() {
               <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-semibold text-gray-900">Upcoming Sessions</h2>
-                  <button className="text-indigo-600 hover:text-indigo-700 text-sm font-medium focus-ring rounded-md p-1">
-                    View All
+                  <button 
+                    onClick={() => window.location.href = '/client/schedule'}
+                    className="text-indigo-600 hover:text-indigo-700 text-sm font-medium focus-ring rounded-md p-1"
+                  >
+                    Book Session
                   </button>
                 </div>
-                <div className="space-y-4">
-                  {upcomingSessions.map((session, index) => (
-                    <SessionItem key={session.id} session={session} />
-                  ))}
-                </div>
+                <SessionStatus />
+              </div>
+
+              {/* My Bookings */}
+              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="50">
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">My Bookings</h2>
+                <MyBookings />
               </div>
 
               {/* Weight Progress */}

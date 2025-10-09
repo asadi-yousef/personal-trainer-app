@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { User } from '../lib/data';
+import { useFeatherIcons } from '../utils/featherIcons';
 
 interface PageHeaderProps {
   user: User;
@@ -11,17 +12,8 @@ interface PageHeaderProps {
  * Page header component with title, notifications, and user info
  */
 export default function PageHeader({ user }: PageHeaderProps) {
-  useEffect(() => {
-    const loadFeatherIcons = async () => {
-      try {
-        const feather = (await import('feather-icons')).default;
-        feather.replace();
-      } catch (error) {
-        console.error('Failed to load feather icons:', error);
-      }
-    };
-    loadFeatherIcons();
-  }, []);
+  // Temporarily disable feather icons to prevent DOM conflicts
+  // useFeatherIcons([user]);
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">

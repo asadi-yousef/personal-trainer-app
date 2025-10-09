@@ -133,6 +133,8 @@ async def get_trainers(
             user_id=trainer.user_id,
             specialty=trainer.specialty,
             price_per_session=trainer.price_per_session,
+            price_per_hour=trainer.price_per_hour,
+            training_types=trainer.training_types,
             bio=trainer.bio,
             cover_image=trainer.cover_image,
             experience_years=trainer.experience_years,
@@ -143,6 +145,16 @@ async def get_trainers(
             reviews_count=trainer.reviews_count,
             is_available=trainer.is_available,
             created_at=trainer.created_at,
+            # Gym information
+            gym_name=trainer.gym_name,
+            gym_address=trainer.gym_address,
+            gym_city=trainer.gym_city,
+            gym_state=trainer.gym_state,
+            gym_zip_code=trainer.gym_zip_code,
+            gym_phone=trainer.gym_phone,
+            # Profile completion status
+            profile_completion_status=trainer.profile_completion_status.value if trainer.profile_completion_status else None,
+            # User information
             user_name=user.full_name,
             user_email=user.email,
             user_avatar=user.avatar
@@ -178,6 +190,8 @@ async def get_trainer(
         user_id=trainer.user_id,
         specialty=trainer.specialty,
         price_per_session=trainer.price_per_session,
+        price_per_hour=trainer.price_per_hour,
+        training_types=trainer.training_types,
         bio=trainer.bio,
         cover_image=trainer.cover_image,
         experience_years=trainer.experience_years,
@@ -188,6 +202,16 @@ async def get_trainer(
         reviews_count=trainer.reviews_count,
         is_available=trainer.is_available,
         created_at=trainer.created_at,
+        # Gym information
+        gym_name=trainer.gym_name,
+        gym_address=trainer.gym_address,
+        gym_city=trainer.gym_city,
+        gym_state=trainer.gym_state,
+        gym_zip_code=trainer.gym_zip_code,
+        gym_phone=trainer.gym_phone,
+        # Profile completion status
+        profile_completion_status=trainer.profile_completion_status.value if trainer.profile_completion_status else None,
+        # User information
         user_name=user.full_name,
         user_email=user.email,
         user_avatar=user.avatar

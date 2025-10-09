@@ -63,8 +63,24 @@ export default function SignInPage() {
       router.push('/');
     } catch (error: any) {
       console.error('Login failed:', error);
+      
+      // Extract a user-friendly error message
+      let errorMessage = 'Login failed. Please check your credentials.';
+      
+      if (error.message) {
+        if (error.message.includes('Incorrect email or password')) {
+          errorMessage = 'Incorrect email or password. Please try again.';
+        } else if (error.message.includes('User not found')) {
+          errorMessage = 'No account found with this email address.';
+        } else if (error.message.includes('Invalid credentials')) {
+          errorMessage = 'Invalid email or password. Please check your credentials.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       setErrors({
-        general: error.message || 'Login failed. Please check your credentials.',
+        general: errorMessage,
       });
     }
   };
@@ -76,11 +92,12 @@ export default function SignInPage() {
       [name]: value,
     }));
     
-    // Clear error when user starts typing
-    if (errors[name]) {
+    // Clear errors when user starts typing
+    if (errors[name] || errors.general) {
       setErrors(prev => ({
         ...prev,
         [name]: '',
+        general: '', // Clear general error too
       }));
     }
   };

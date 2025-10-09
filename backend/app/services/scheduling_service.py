@@ -65,7 +65,8 @@ class SchedulingService:
         duration_minutes: int
     ) -> List[TimeSlot]:
         """Get available time slots for a trainer within a date range"""
-        time_slots = self.db.query(TimeSlot).filter(
+        # First, try to find exact duration matches
+        exact_slots = self.db.query(TimeSlot).filter(
             TimeSlot.trainer_id == trainer_id,
             TimeSlot.start_time >= start_date,
             TimeSlot.start_time <= end_date,
@@ -74,7 +75,98 @@ class SchedulingService:
             TimeSlot.duration_minutes == duration_minutes
         ).order_by(TimeSlot.start_time).all()
         
-        return time_slots
+        if exact_slots:
+            return exact_slots
+        
+        # If no exact matches, try to combine consecutive 60-minute slots
+        if duration_minutes > 60:
+            return self._get_combined_time_slots(
+                trainer_id, start_date, end_date, duration_minutes
+            )
+        
+        # For 60-minute requests, get 60-minute slots
+        return self.db.query(TimeSlot).filter(
+            TimeSlot.trainer_id == trainer_id,
+            TimeSlot.start_time >= start_date,
+            TimeSlot.start_time <= end_date,
+            TimeSlot.is_available == True,
+            TimeSlot.is_booked == False,
+            TimeSlot.duration_minutes == 60
+        ).order_by(TimeSlot.start_time).all()
+    
+    def _get_combined_time_slots(
+        self,
+        trainer_id: int,
+        start_date: datetime,
+        end_date: datetime,
+        duration_minutes: int
+    ) -> List[Dict]:
+        """Find consecutive 60-minute slots that can be combined for longer duration"""
+        # Get all available 60-minute slots
+        base_slots = self.db.query(TimeSlot).filter(
+            TimeSlot.trainer_id == trainer_id,
+            TimeSlot.start_time >= start_date,
+            TimeSlot.start_time <= end_date,
+            TimeSlot.is_available == True,
+            TimeSlot.is_booked == False,
+            TimeSlot.duration_minutes == 60
+        ).order_by(TimeSlot.start_time).all()
+        
+        if not base_slots:
+            return []
+        
+        # Calculate how many 60-minute slots we need
+        slots_needed = duration_minutes // 60
+        
+        combined_slots = []
+        used_slot_ids = set()
+        
+        for i, start_slot in enumerate(base_slots):
+            if start_slot.id in used_slot_ids:
+                continue
+                
+            # Check if we can find consecutive slots starting from this one
+            consecutive_slots = [start_slot]
+            current_time = start_slot.end_time
+            
+            for j in range(i + 1, len(base_slots)):
+                next_slot = base_slots[j]
+                
+                # Skip if this slot is already used
+                if next_slot.id in used_slot_ids:
+                    continue
+                
+                # Check if this slot starts exactly when the previous one ends
+                if next_slot.start_time == current_time:
+                    consecutive_slots.append(next_slot)
+                    current_time = next_slot.end_time
+                    
+                    # If we have enough consecutive slots, create a combined slot entry
+                    if len(consecutive_slots) == slots_needed:
+                        # Create a combined slot entry (not a TimeSlot object)
+                        combined_slot = {
+                            'slot_id': start_slot.id,  # Use the first slot's ID
+                            'start_slot_id': start_slot.id,
+                            'end_slot_id': next_slot.id,
+                            'start_time': start_slot.start_time,
+                            'end_time': next_slot.end_time,
+                            'duration_minutes': duration_minutes,
+                            'is_available': True,
+                            'is_booked': False,
+                            'is_combined': True,
+                            'component_slots': [slot.id for slot in consecutive_slots]
+                        }
+                        combined_slots.append(combined_slot)
+                        
+                        # Mark all used slots
+                        for slot in consecutive_slots:
+                            used_slot_ids.add(slot.id)
+                        break
+                else:
+                    # Gap found, can't continue this sequence
+                    break
+        
+        return combined_slots
     
     def _filter_slots_by_preferences(
         self, 
@@ -106,7 +198,7 @@ class SchedulingService:
     
     def _score_time_slots(
         self, 
-        time_slots: List[TimeSlot], 
+        time_slots, 
         booking_request: SmartBookingRequest
     ) -> List[Dict]:
         """Score time slots based on optimization criteria"""
@@ -115,19 +207,33 @@ class SchedulingService:
         for slot in time_slots:
             score = 0.0
             
+            # Handle both TimeSlot objects and combined slot dictionaries
+            if isinstance(slot, dict):
+                # Combined slot
+                start_time = slot['start_time']
+                end_time = slot['end_time']
+                slot_id = slot['slot_id']
+                is_combined = slot.get('is_combined', False)
+            else:
+                # Regular TimeSlot object
+                start_time = slot.start_time
+                end_time = slot.end_time
+                slot_id = slot.id
+                is_combined = False
+            
             # Base score for availability
             score += 10.0
             
             # Time preference scoring
             if booking_request.preferred_times:
-                time_str = slot.start_time.strftime("%H:%M")
+                time_str = start_time.strftime("%H:%M")
                 if time_str in booking_request.preferred_times:
                     score += 25.0  # High bonus for preferred times
                 else:
                     score += 5.0   # Small bonus for any available time
             
             # Convenience scoring (morning/afternoon slots)
-            hour = slot.start_time.hour
+            hour = start_time.hour
             if 9 <= hour <= 11:  # Morning slots
                 score += 15.0
             elif 14 <= hour <= 16:  # Afternoon slots
@@ -138,29 +244,44 @@ class SchedulingService:
             # Weekend penalty/bonus
             if booking_request.allow_weekends:
                 # Weekend slots get a small bonus for flexibility
-                if slot.start_time.weekday() >= 5:  # Saturday or Sunday
+                if start_time.weekday() >= 5:  # Saturday or Sunday
                     score += 5.0
             
             # Duration optimization
             if booking_request.duration_minutes == 60:
                 score += 5.0  # Bonus for standard 1-hour sessions
+            elif booking_request.duration_minutes == 120:
+                score += 8.0  # Bonus for 2-hour sessions
+            
+            # Bonus for combined slots (more flexible)
+            if is_combined:
+                score += 3.0
             
             # Add randomization factor to avoid always getting the same results
             import random
             score += random.uniform(0, 5)
             
-            scored_slots.append({
-                'slot_id': slot.id,
-                'date': slot.start_time.date(),
-                'start_time': slot.start_time.time(),
-                'end_time': slot.end_time.time(),
-                'datetime_start': slot.start_time,
-                'datetime_end': slot.end_time,
+            scored_slot = {
+                'slot_id': slot_id,
+                'date': start_time.date(),
+                'start_time': start_time.time(),
+                'end_time': end_time.time(),
+                'datetime_start': start_time,
+                'datetime_end': end_time,
                 'score': round(score, 2),
-                'start_time_str': slot.start_time.strftime("%H:%M"),
-                'end_time_str': slot.end_time.strftime("%H:%M"),
-                'date_str': slot.start_time.strftime("%Y-%m-%d")
-            })
+                'start_time_str': start_time.strftime("%H:%M"),
+                'end_time_str': end_time.strftime("%H:%M"),
+                'date_str': start_time.strftime("%Y-%m-%d")
+            }
+            
+            # Add combined slot information if applicable
+            if isinstance(slot, dict) and is_combined:
+                scored_slot['is_combined'] = True
+                scored_slot['component_slots'] = slot.get('component_slots', [])
+                scored_slot['start_slot_id'] = slot.get('start_slot_id')
+                scored_slot['end_slot_id'] = slot.get('end_slot_id')
+            
+            scored_slots.append(scored_slot)
         
         return scored_slots
     
@@ -596,3 +717,161 @@ class SchedulingService:
         score += flexibility_score
         
         return round(score, 2)
+    
+    async def get_available_time_slots(
+        self,
+        trainer_id: int,
+        date: datetime,
+        duration_minutes: int = 60
+    ) -> List[Dict]:
+        """
+        Get available time slots for a trainer on a specific date
+        This is the new time-based booking system
+        """
+        # Validate duration
+        if duration_minutes not in [60, 90, 120]:
+            raise ValueError("Duration must be 60, 90, or 120 minutes")
+        
+        # Get trainer's availability for the day
+        day_of_week = date.weekday()
+        trainer_availability = self.db.query(TrainerAvailability).filter(
+            TrainerAvailability.trainer_id == trainer_id,
+            TrainerAvailability.day_of_week == day_of_week,
+            TrainerAvailability.is_available == True
+        ).first()
+        
+        if not trainer_availability:
+            return []  # Trainer not available on this day
+        
+        # Parse availability times
+        start_time_str = trainer_availability.start_time
+        end_time_str = trainer_availability.end_time
+        
+        # Convert to datetime objects for the specific date
+        start_datetime = datetime.combine(date.date(), datetime.strptime(start_time_str, "%H:%M").time())
+        end_datetime = datetime.combine(date.date(), datetime.strptime(end_time_str, "%H:%M").time())
+        
+        # Generate 30-minute slots within availability window
+        available_slots = []
+        current_time = start_datetime
+        
+        while current_time + timedelta(minutes=duration_minutes) <= end_datetime:
+            slot_end_time = current_time + timedelta(minutes=duration_minutes)
+            
+            # Check if this slot conflicts with existing bookings
+            if not self._has_time_slot_conflict(trainer_id, current_time, slot_end_time):
+                available_slots.append({
+                    'start_time': current_time,
+                    'end_time': slot_end_time,
+                    'duration_minutes': duration_minutes,
+                    'is_available': True
+                })
+            
+            # Move to next 30-minute slot
+            current_time += timedelta(minutes=30)
+        
+        return available_slots
+    
+    def _has_time_slot_conflict(
+        self,
+        trainer_id: int,
+        start_time: datetime,
+        end_time: datetime
+    ) -> bool:
+        """Check if a time slot conflicts with existing bookings or sessions"""
+        
+        # Check for existing bookings
+        conflicting_bookings = self.db.query(Booking).filter(
+            Booking.trainer_id == trainer_id,
+            Booking.status.in_(['pending', 'confirmed']),
+            Booking.start_time < end_time,
+            Booking.end_time > start_time
+        ).count()
+        
+        if conflicting_bookings > 0:
+            return True
+        
+        # Check for existing sessions
+        conflicting_sessions = self.db.query(Session).filter(
+            Session.trainer_id == trainer_id,
+            Session.status.in_(['pending', 'confirmed']),
+            Session.scheduled_date < end_time,
+            Session.scheduled_date + timedelta(minutes=Session.duration_minutes) > start_time
+        ).count()
+        
+        if conflicting_sessions > 0:
+            return True
+        
+        return False
+    
+    def create_time_based_booking(
+        self,
+        client_id: int,
+        trainer_id: int,
+        start_time: datetime,
+        end_time: datetime,
+        training_type: str,
+        location_type: str = "gym",
+        location_address: str = None,
+        special_requests: str = None
+    ) -> Dict:
+        """
+        Create a time-based booking
+        """
+        # Validate session duration
+        duration_minutes = (end_time - start_time).total_seconds() / 60
+        if duration_minutes not in [60, 90, 120]:
+            raise ValueError("Session duration must be 60, 90, or 120 minutes")
+        
+        # Check for conflicts
+        if self._has_time_slot_conflict(trainer_id, start_time, end_time):
+            raise ValueError("Time slot conflicts with existing booking")
+        
+        # Get trainer for pricing
+        trainer = self.db.query(Trainer).filter(Trainer.id == trainer_id).first()
+        if not trainer:
+            raise ValueError("Trainer not found")
+        
+        if trainer.profile_completion_status != ProfileCompletionStatus.COMPLETE:
+            raise ValueError("Trainer profile is not complete")
+        
+        # Calculate pricing
+        total_hours = duration_minutes / 60
+        base_cost = trainer.price_per_hour * total_hours
+        
+        # Add location surcharge if needed
+        location_surcharge = 0.0
+        if location_type == "home":
+            location_surcharge = 10.0  # $10 surcharge for home training
+        
+        total_cost = base_cost + location_surcharge
+        
+        # Create booking
+        booking = Booking(
+            client_id=client_id,
+            trainer_id=trainer_id,
+            start_time=start_time,
+            end_time=end_time,
+            training_type=training_type,
+            price_per_hour=trainer.price_per_hour,
+            total_cost=total_cost,
+            location_type=location_type,
+            location_address=location_address,
+            special_requests=special_requests,
+            status='pending',
+            duration_minutes=int(duration_minutes)
+        )
+        
+        self.db.add(booking)
+        self.db.commit()
+        self.db.refresh(booking)
+        
+        return {
+            'booking_id': booking.id,
+            'start_time': start_time,
+            'end_time': end_time,
+            'duration_minutes': int(duration_minutes),
+            'total_cost': total_cost,
+            'status': 'pending',
+            'message': 'Booking created successfully'
+        }

@@ -95,8 +95,12 @@ export default function SignUpPage() {
         role: formData.role,
       });
       
-      // Redirect to home page (context will handle user state)
-      router.push('/');
+      // Redirect based on user role
+      if (formData.role === 'trainer') {
+        router.push('/trainer');
+      } else {
+        router.push('/');
+      }
     } catch (error: any) {
       console.error('Registration failed:', error);
       setErrors({

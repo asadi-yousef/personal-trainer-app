@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeatherIcons } from '../utils/featherIcons';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -17,17 +18,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
 
-  useEffect(() => {
-    const loadFeatherIcons = async () => {
-      try {
-        const feather = (await import('feather-icons')).default;
-        feather.replace();
-      } catch (error) {
-        console.error('Failed to load feather icons:', error);
-      }
-    };
-    loadFeatherIcons();
-  }, [collapsed]);
+  // Temporarily disable feather icons to prevent DOM conflicts
+  // useFeatherIcons([collapsed, pathname]);
 
   // Get current route to determine which sidebar to show
   const isClientRoute = pathname.startsWith('/client');

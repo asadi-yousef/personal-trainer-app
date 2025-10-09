@@ -94,12 +94,22 @@ export default function OptimalSchedulingPage() {
           confidence_score: response.confidence_score,
           message: response.message
         }));
+        setError(null); // Clear any previous errors
       } else {
-        setError('No optimal time slots found. Try adjusting your preferences.');
+        // Handle empty results gracefully
+        setSuggestions([]);
+        setError(response.message || 'No optimal time slots found. Try adjusting your preferences.');
       }
     } catch (err: any) {
       console.error('Error finding optimal schedule:', err);
-      setError(err.message || 'Failed to find optimal schedule');
+      
+      // Handle "no slots found" as a normal case, not an error
+      if (err.message && err.message.includes('No available slots found')) {
+        setSuggestions([]);
+        setError(err.message);
+      } else {
+        setError(err.message || 'Failed to find optimal schedule');
+      }
     } finally {
       setLoading(false);
     }

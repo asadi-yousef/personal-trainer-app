@@ -235,6 +235,15 @@ async def approve_booking_request(
         request.confirmed_date = approval.confirmed_date
         request.alternative_dates_list = approval.alternative_dates
         
+        # Calculate the price
+        trainer = db.query(Trainer).filter(Trainer.id == request.trainer_id).first()
+        hours = request.duration_minutes / 60
+        calculated_price = trainer.price_per_hour * hours if trainer.price_per_hour > 0 else trainer.price_per_session
+        
+        # Calculate start and end times
+        start_time = approval.confirmed_date
+        end_time = start_time + timedelta(minutes=request.duration_minutes)
+        
         # Create a confirmed booking
         booking = Booking(
             client_id=request.client_id,
@@ -247,6 +256,12 @@ async def approve_booking_request(
             preferred_end_date=request.preferred_end_date,
             preferred_times=request.preferred_times,
             confirmed_date=approval.confirmed_date,
+            start_time=start_time,
+            end_time=end_time,
+            total_cost=calculated_price,
+            price_per_hour=trainer.price_per_hour,
+            training_type=request.training_type or request.session_type,
+            location_type=request.location_type,
             status=BookingStatus.CONFIRMED,
             is_recurring=request.is_recurring,
             recurring_pattern=request.recurring_pattern
@@ -256,19 +271,40 @@ async def approve_booking_request(
         db.commit()
         db.refresh(booking)
         
+        # Create corresponding Session
+        from app.models import Session as SessionModel, SessionStatus
+        session = SessionModel(
+            client_id=request.client_id,
+            trainer_id=request.trainer_id,
+            booking_id=booking.id,
+            title=f"{request.session_type} Session",
+            session_type=request.session_type,
+            scheduled_date=approval.confirmed_date,
+            duration_minutes=request.duration_minutes,
+            location=request.location,
+            notes=request.special_requests,
+            status=SessionStatus.CONFIRMED
+        )
+        
+        db.add(session)
+        db.commit()
+        
         # Mark corresponding time slot as booked if it exists
         if approval.confirmed_date:
-            time_slot = db.query(TimeSlot).filter(
+            # Find time slots that overlap with this booking
+            time_slots = db.query(TimeSlot).filter(
                 TimeSlot.trainer_id == request.trainer_id,
-                TimeSlot.start_time <= approval.confirmed_date,
-                TimeSlot.end_time >= approval.confirmed_date,
+                TimeSlot.start_time >= start_time,
+                TimeSlot.start_time < end_time,
                 TimeSlot.is_available == True,
                 TimeSlot.is_booked == False
-            ).first()
+            ).all()
             
-            if time_slot:
+            for time_slot in time_slots:
                 time_slot.is_booked = True
                 time_slot.booking_id = booking.id
+            
+            if time_slots:
                 db.commit()
     
     db.commit()

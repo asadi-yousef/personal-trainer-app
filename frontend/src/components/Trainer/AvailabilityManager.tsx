@@ -61,21 +61,31 @@ export default function AvailabilityManager() {
         is_available: true
       });
       setIsAdding(false);
+      
+      // Show success message
+      alert('✅ Availability added! Time slots have been generated for the next 4 weeks.');
     } catch (error) {
       console.error('Failed to add slot:', error);
-      alert('Failed to add availability slot');
+      alert('❌ Failed to add availability slot');
     }
   };
 
   const handleDeleteSlot = async (slotId: number) => {
-    if (!confirm('Are you sure you want to delete this availability slot?')) return;
+    if (!confirm('⚠️ This will delete the availability slot and all unbooked time slots for the next 4 weeks. Are you sure?')) return;
     
     try {
-      await availability.delete(slotId);
+      const response = await availability.delete(slotId);
       setSlots(slots.filter(slot => slot.id !== slotId));
+      
+      // Show success message with how many time slots were removed
+      if (response && response.time_slots_removed !== undefined) {
+        alert(`✅ Availability deleted! ${response.time_slots_removed} future time slots removed.`);
+      } else {
+        alert('✅ Availability deleted successfully!');
+      }
     } catch (error) {
       console.error('Failed to delete slot:', error);
-      alert('Failed to delete availability slot');
+      alert('❌ Failed to delete availability slot');
     }
   };
 
@@ -205,14 +215,38 @@ export default function AvailabilityManager() {
       {slots.length > 0 && (
         <div className="bg-blue-50 p-4 rounded-lg">
           <h4 className="font-medium text-blue-900 mb-2">Availability Summary</h4>
-          <p className="text-blue-800 text-sm">
+          <p className="text-blue-800 text-sm mb-2">
             You have {slots.length} availability slot{slots.length !== 1 ? 's' : ''} set across {new Set(slots.map(s => s.day_of_week)).size} day{new Set(slots.map(s => s.day_of_week)).size !== 1 ? 's' : ''}.
+          </p>
+          <p className="text-blue-700 text-xs">
+            💡 When you add or delete availability, bookable time slots are automatically generated for the next 4 weeks.
           </p>
         </div>
       )}
+      
+      {/* Info Box */}
+      <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+        <div className="flex items-start">
+          <svg className="h-5 w-5 text-green-600 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <h4 className="font-medium text-green-900 mb-1">How Availability Works</h4>
+            <ul className="text-green-800 text-sm space-y-1">
+              <li>• Set your weekly recurring availability (e.g., "Every Monday 9 AM - 5 PM")</li>
+              <li>• System automatically creates 60-minute bookable time slots</li>
+              <li>• Clients can book these slots directly from your calendar</li>
+              <li>• Booked slots won't be deleted when you update availability</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
+
+
+
 
 
 

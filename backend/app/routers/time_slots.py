@@ -135,8 +135,8 @@ async def get_available_slots(
     
     available_slots = db.query(TimeSlot).filter(
         TimeSlot.trainer_id == trainer_id,
-        TimeSlot.date >= start_datetime,
-        TimeSlot.date < end_datetime,
+        TimeSlot.start_time >= start_datetime,
+        TimeSlot.start_time < end_datetime,
         TimeSlot.is_available == True,
         TimeSlot.is_booked == False,
         TimeSlot.duration_minutes == duration_minutes

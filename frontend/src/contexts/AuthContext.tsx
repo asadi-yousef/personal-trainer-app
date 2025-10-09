@@ -6,6 +6,7 @@ import { auth, User } from '../lib/api';
 // Define the context type
 interface AuthContextType {
   user: User | null;
+  token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -123,6 +124,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Context value
   const value: AuthContextType = {
     user,
+    token: auth.getToken(),
     isLoading,
     isAuthenticated,
     login,

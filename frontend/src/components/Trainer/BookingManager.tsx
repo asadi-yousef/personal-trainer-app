@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bookings } from '../../lib/api';
+import { bookingManagement } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Booking {
@@ -11,11 +11,15 @@ interface Booking {
   session_type: string;
   duration_minutes: number;
   location: string;
-  preferred_start_date: string;
-  preferred_end_date: string;
+  start_time?: string;
+  end_time?: string;
   confirmed_date?: string;
   status: string;
   notes?: string;
+  special_requests?: string;
+  client_name?: string;
+  trainer_name?: string;
+  other_party_name?: string;
   client?: {
     user: {
       full_name: string;
@@ -37,8 +41,8 @@ export default function BookingManager() {
       
       try {
         setLoading(true);
-        const data = await bookings.getAll({ trainer_id: user.trainer_profile.id });
-        setBookings(data || []);
+        const response = await bookingManagement.getMyBookings();
+        setBookings(response?.bookings || []);
       } catch (error) {
         console.error('Failed to fetch bookings:', error);
         setBookings([]);
@@ -50,15 +54,37 @@ export default function BookingManager() {
     fetchBookings();
   }, [user]);
 
-  const handleConfirmBooking = async (bookingId: number, confirmedDate: string) => {
+  const handleCompleteBooking = async (bookingId: number) => {
     try {
-      await bookings.confirm(bookingId, { confirmed_date: confirmedDate });
+      // Mark booking as completed
+      await bookingManagement.rescheduleBooking({ 
+        booking_id: bookingId, 
+        status: 'completed',
+        notes: 'Session completed'
+      });
       // Refresh bookings
-      const data = await bookings.getAll({ trainer_id: user?.trainer_profile?.id });
+      const data = await bookingManagement.getMyBookings();
       setBookings(data || []);
     } catch (error) {
-      console.error('Failed to confirm booking:', error);
-      alert('Failed to confirm booking');
+      console.error('Failed to complete booking:', error);
+      alert('Failed to complete booking');
+    }
+  };
+
+  const handleCancelBooking = async (bookingId: number) => {
+    if (!confirm('Are you sure you want to cancel this booking?')) return;
+    
+    try {
+      await bookingManagement.cancelBooking({ 
+        booking_id: bookingId,
+        reason: 'Cancelled by trainer'
+      });
+      // Refresh bookings
+      const data = await bookingManagement.getMyBookings();
+      setBookings(data || []);
+    } catch (error) {
+      console.error('Failed to cancel booking:', error);
+      alert('Failed to cancel booking');
     }
   };
 
@@ -83,6 +109,14 @@ export default function BookingManager() {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
+    });
+  };
+
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
     });
   };
 
@@ -130,12 +164,12 @@ export default function BookingManager() {
                   <div className="flex items-center space-x-3 mb-2">
                     <img
                       src={booking.client?.user?.avatar || 'https://i.pravatar.cc/200'}
-                      alt={booking.client?.user?.full_name || 'Client'}
+                      alt={booking.client?.user?.full_name || booking.client_name || booking.other_party_name || 'Client'}
                       className="w-10 h-10 rounded-full"
                     />
                     <div>
                       <h4 className="font-medium text-gray-900">
-                        {booking.client?.user?.full_name || 'Client'}
+                        {booking.client?.user?.full_name || booking.client_name || booking.other_party_name || 'Client'}
                       </h4>
                       <p className="text-sm text-gray-600">{booking.session_type}</p>
                     </div>
@@ -151,8 +185,15 @@ export default function BookingManager() {
                       <p className="font-medium">{booking.location}</p>
                     </div>
                     <div>
-                      <span className="text-gray-500">Preferred:</span>
-                      <p className="font-medium">{formatDate(booking.preferred_start_date)}</p>
+                      <span className="text-gray-500">Scheduled:</span>
+                      <p className="font-medium">
+                        {booking.start_time && booking.end_time 
+                          ? `${formatDate(booking.start_time)} at ${formatTime(booking.start_time)}`
+                          : booking.confirmed_date 
+                          ? formatDate(booking.confirmed_date)
+                          : 'Not scheduled'
+                        }
+                      </p>
                     </div>
                     <div>
                       <span className="text-gray-500">Status:</span>
@@ -168,23 +209,42 @@ export default function BookingManager() {
                       <p className="text-sm text-gray-700">{booking.notes}</p>
                     </div>
                   )}
+
+                  {booking.special_requests && (
+                    <div className="mt-2">
+                      <span className="text-gray-500 text-sm">Special Requests:</span>
+                      <p className="text-sm text-gray-700">{booking.special_requests}</p>
+                    </div>
+                  )}
                 </div>
                 
-                {booking.status === 'pending' && (
-                  <div className="ml-4">
-                    <button
-                      onClick={() => {
-                        const date = prompt('Enter confirmed date (YYYY-MM-DD):', booking.preferred_start_date);
-                        if (date) {
-                          handleConfirmBooking(booking.id, date);
-                        }
-                      }}
-                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm"
-                    >
-                      Confirm
-                    </button>
-                  </div>
-                )}
+                {/* Actions based on status */}
+                <div className="ml-4 flex flex-col space-y-2">
+                  {booking.status === 'confirmed' && (
+                    <>
+                      <button
+                        onClick={() => handleCompleteBooking(booking.id)}
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm"
+                      >
+                        Mark Complete
+                      </button>
+                      <button
+                        onClick={() => handleCancelBooking(booking.id)}
+                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                  
+                  {booking.status === 'completed' && (
+                    <span className="text-sm text-green-600 font-medium">✓ Completed</span>
+                  )}
+                  
+                  {booking.status === 'cancelled' && (
+                    <span className="text-sm text-red-600 font-medium">✗ Cancelled</span>
+                  )}
+                </div>
               </div>
             </div>
           ))
@@ -216,6 +276,8 @@ export default function BookingManager() {
     </div>
   );
 }
+
+
 
 
 

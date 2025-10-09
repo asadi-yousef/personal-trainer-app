@@ -4,28 +4,66 @@ import { useEffect, useState } from 'react';
 import { Trainer } from '../../lib/data';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { useFeatherIcons } from '../../utils/featherIcons';
 
 interface TrainerCardProps {
   trainer: Trainer;
 }
 
 // Helper function to map API trainer data to component format
-const mapApiTrainerToComponent = (apiTrainer: any) => ({
-  id: apiTrainer.id,
-  name: apiTrainer.user_name || 'Unknown Trainer',
-  avatar: apiTrainer.user_avatar || 'https://i.pravatar.cc/200',
-  cover: apiTrainer.cover_image || 'https://picsum.photos/400/300',
-  specialty: apiTrainer.specialty,
-  rating: apiTrainer.rating || 0,
-  reviews: apiTrainer.reviews_count || 0,
-  price: apiTrainer.price_per_session || 0,
-  blurb: apiTrainer.bio || 'No description available',
-  availability: apiTrainer.availability ? 
-    (typeof apiTrainer.availability === 'string' ? 
-      JSON.parse(apiTrainer.availability) : 
-      apiTrainer.availability) : 
-    ['Flexible schedule']
-});
+const mapApiTrainerToComponent = (apiTrainer: any) => {
+  // Parse training types from JSON string
+  let trainingTypes = [];
+  if (apiTrainer.training_types) {
+    try {
+      trainingTypes = typeof apiTrainer.training_types === 'string' 
+        ? JSON.parse(apiTrainer.training_types) 
+        : apiTrainer.training_types;
+    } catch (e) {
+      console.warn('Failed to parse training types:', e);
+      trainingTypes = [];
+    }
+  }
+
+  // Parse availability from JSON string
+  let availability = ['Flexible schedule'];
+  if (apiTrainer.availability) {
+    try {
+      availability = typeof apiTrainer.availability === 'string' 
+        ? JSON.parse(apiTrainer.availability) 
+        : apiTrainer.availability;
+    } catch (e) {
+      console.warn('Failed to parse availability:', e);
+    }
+  }
+
+  return {
+    id: apiTrainer.id,
+    name: apiTrainer.user_name || 'Unknown Trainer',
+    avatar: apiTrainer.user_avatar || 'https://i.pravatar.cc/200',
+    cover: apiTrainer.cover_image || 'https://picsum.photos/400/300',
+    specialty: apiTrainer.specialty,
+    rating: apiTrainer.rating || 0,
+    reviews: apiTrainer.reviews_count || 0,
+    price: apiTrainer.price_per_hour || apiTrainer.price_per_session || 0,
+    pricePerSession: apiTrainer.price_per_session || 0,
+    pricePerHour: apiTrainer.price_per_hour || 0,
+    blurb: apiTrainer.bio || 'No description available',
+    availability,
+    trainingTypes,
+    // Gym information
+    gymName: apiTrainer.gym_name,
+    gymAddress: apiTrainer.gym_address,
+    gymCity: apiTrainer.gym_city,
+    gymState: apiTrainer.gym_state,
+    gymZipCode: apiTrainer.gym_zip_code,
+    gymPhone: apiTrainer.gym_phone,
+    // Profile completion
+    profileComplete: apiTrainer.profile_completion_status === 'COMPLETE',
+    experienceYears: apiTrainer.experience_years || 0,
+    certifications: apiTrainer.certifications
+  };
+};
 
 /**
  * Trainer card component displaying trainer information
@@ -37,17 +75,9 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
   
   // Map API data to component format
   const mappedTrainer = mapApiTrainerToComponent(trainer);
-  useEffect(() => {
-    const loadFeatherIcons = async () => {
-      try {
-        const feather = (await import('feather-icons')).default;
-        feather.replace();
-      } catch (error) {
-        console.error('Failed to load feather icons:', error);
-      }
-    };
-    loadFeatherIcons();
-  }, []);
+  
+  // Use safe feather icon replacement
+  useFeatherIcons([mappedTrainer]);
 
   const getSpecialtyColor = (specialty: string) => {
     const colors = {
@@ -92,7 +122,10 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
       name: mappedTrainer.name,
       specialty: mappedTrainer.specialty,
       rating: mappedTrainer.rating,
-      price: mappedTrainer.price
+      price_per_hour: mappedTrainer.pricePerHour,
+      training_types: mappedTrainer.trainingTypes,
+      gym_name: mappedTrainer.gymName || 'Gym',
+      gym_address: mappedTrainer.gymAddress || 'Address not specified'
     }));
     
     // Navigate to direct booking page
@@ -113,10 +146,15 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
           alt={`${mappedTrainer.name} training`}
           className="w-full h-full object-cover"
         />
-        <div className="absolute top-4 right-4">
+        <div className="absolute top-4 right-4 flex flex-col gap-2">
           <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSpecialtyColor(mappedTrainer.specialty)}`}>
             {mappedTrainer.specialty}
           </span>
+          {!mappedTrainer.profileComplete && (
+            <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+              Profile Incomplete
+            </span>
+          )}
         </div>
       </div>
 
@@ -148,6 +186,54 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
           {mappedTrainer.blurb}
         </p>
 
+        {/* Training Types */}
+        {mappedTrainer.trainingTypes && mappedTrainer.trainingTypes.length > 0 && (
+          <div className="mb-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Specialties:</h4>
+            <div className="flex flex-wrap gap-1">
+              {mappedTrainer.trainingTypes.map((type: string) => (
+                <span
+                  key={type}
+                  className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-md"
+                >
+                  {type}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Gym Information */}
+        {mappedTrainer.gymName && (
+          <div className="mb-4">
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Location:</h4>
+            <div className="text-sm text-gray-600">
+              <div className="font-medium">{mappedTrainer.gymName}</div>
+              {mappedTrainer.gymAddress && (
+                <div>{mappedTrainer.gymAddress}</div>
+              )}
+              {(mappedTrainer.gymCity || mappedTrainer.gymState) && (
+                <div>
+                  {mappedTrainer.gymCity && mappedTrainer.gymCity}
+                  {mappedTrainer.gymCity && mappedTrainer.gymState && ', '}
+                  {mappedTrainer.gymState && mappedTrainer.gymState}
+                  {mappedTrainer.gymZipCode && ` ${mappedTrainer.gymZipCode}`}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Experience */}
+        {mappedTrainer.experienceYears > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center text-sm text-gray-600">
+              <i data-feather="award" className="h-4 w-4 mr-2"></i>
+              <span>{mappedTrainer.experienceYears} years experience</span>
+            </div>
+          </div>
+        )}
+
         {/* Availability */}
         <div className="mb-4">
           <h4 className="text-sm font-medium text-gray-900 mb-2">Available:</h4>
@@ -167,8 +253,22 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-2xl font-bold text-indigo-600">${mappedTrainer.price}</span>
-              <span className="text-gray-600 text-sm ml-1">/session</span>
+              {mappedTrainer.pricePerHour > 0 ? (
+                <div>
+                  <span className="text-2xl font-bold text-indigo-600">${mappedTrainer.pricePerHour}</span>
+                  <span className="text-gray-600 text-sm ml-1">/hour</span>
+                  {mappedTrainer.pricePerSession > 0 && (
+                    <div className="text-sm text-gray-500">
+                      ${mappedTrainer.pricePerSession}/session
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <span className="text-2xl font-bold text-indigo-600">${mappedTrainer.pricePerSession}</span>
+                  <span className="text-gray-600 text-sm ml-1">/session</span>
+                </div>
+              )}
             </div>
             <button 
               onClick={handleViewProfile}
@@ -199,6 +299,7 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
           </div>
         </div>
       </div>
+
     </div>
   );
 }

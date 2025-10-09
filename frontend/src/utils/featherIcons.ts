@@ -1,59 +1,41 @@
 import { useEffect, useRef } from 'react';
 
-// Safe feather icon replacement utility
+// Simple feather icon replacement utility
 export const useFeatherIcons = (dependencies: any[] = []) => {
-  const isReplacing = useRef(false);
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const replaceIcons = async () => {
-      // Prevent multiple simultaneous replacements
-      if (isReplacing.current) return;
-      
-      isReplacing.current = true;
+      if (!mounted.current || typeof window === 'undefined') return;
       
       try {
-        // Only run on client side
-        if (typeof window === 'undefined') return;
-        
-        // Import feather dynamically
         const feather = (await import('feather-icons')).default;
-        
-        // Small delay to ensure DOM is ready
-        setTimeout(() => {
-          try {
-            feather.replace();
-          } catch (error) {
-            console.warn('Feather icon replacement failed:', error);
-          } finally {
-            isReplacing.current = false;
-          }
-        }, 10);
+        feather.replace();
       } catch (error) {
-        console.warn('Failed to load feather icons:', error);
-        isReplacing.current = false;
+        // Silently fail - icons will just not be replaced
       }
     };
 
-    replaceIcons();
+    const timeoutId = setTimeout(replaceIcons, 100);
+    return () => clearTimeout(timeoutId);
   }, dependencies);
 };
 
-// Alternative: Safe feather replacement function
+// Safe feather replace function
 export const safeFeatherReplace = async () => {
+  if (typeof window === 'undefined') return;
+  
   try {
-    if (typeof window === 'undefined') return;
-    
     const feather = (await import('feather-icons')).default;
-    
-    // Use requestAnimationFrame to ensure DOM is ready
-    requestAnimationFrame(() => {
-      try {
-        feather.replace();
-      } catch (error) {
-        console.warn('Feather icon replacement failed:', error);
-      }
-    });
+    feather.replace();
   } catch (error) {
-    console.warn('Failed to load feather icons:', error);
+    // Silently fail
   }
 };
