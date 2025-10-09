@@ -431,7 +431,7 @@ This is an educational project for university coursework.
 
 ## 👥 Contributors
 
-- Student Name - University Project
+- Yosef Asadi - University of Haifa
 
 ## 📞 Support
 
