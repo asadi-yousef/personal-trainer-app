@@ -14,6 +14,7 @@ from app.schemas.booking_request import (
 )
 from app.utils.auth import get_current_user
 from app.services.email_service import email_service
+from app.services.booking_service import BookingService
 
 router = APIRouter(prefix="/booking-requests", tags=["Booking Requests"])
 
@@ -423,3 +424,74 @@ async def cancel_booking_request(
     
     db.commit()
     return {"message": "Booking request cancelled successfully"}
+
+
+@router.get("/{request_id}/scored-slots")
+async def get_scored_time_slots(
+    request_id: int,
+    max_results: int = 5,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get time slots ranked by W_C (Client Preference Match) score
+    
+    This endpoint uses the robust scoring algorithm to find the best
+    time slots that match the client's preferences.
+    
+    Returns:
+        List of scored slots with:
+        - total_score: W_C score (integer)
+        - breakdown: Component scores (date_match, time_of_day_match, etc.)
+        - slot_id: ID of the time slot
+        - slot_start: ISO timestamp of slot start
+        - requires_manual_review: Boolean flag if score is too low
+    """
+    # Get booking request
+    request = db.query(BookingRequest).filter(BookingRequest.id == request_id).first()
+    if not request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking request not found"
+        )
+    
+    # Check permissions (trainer or client can view)
+    if current_user.role == "client" and request.client_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this request"
+        )
+    elif current_user.role == "trainer":
+        if not current_user.trainer_profile or request.trainer_id != current_user.trainer_profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this request"
+            )
+    
+    # Use BookingService to find best slots with scoring
+    booking_service = BookingService(db)
+    scored_slots = booking_service.find_best_slots_with_scoring(
+        booking_request=request,
+        trainer_id=request.trainer_id,
+        max_results=max_results
+    )
+    
+    if not scored_slots:
+        return {
+            "request_id": request_id,
+            "scored_slots": [],
+            "message": "No available time slots found for the given preferences"
+        }
+    
+    return {
+        "request_id": request_id,
+        "scored_slots": scored_slots,
+        "message": f"Found {len(scored_slots)} time slots ranked by preference match",
+        "scoring_info": {
+            "max_date_score": 50,
+            "max_time_score": 40,
+            "max_bonus": 10,
+            "avoid_penalty": -50,
+            "best_score": scored_slots[0]['total_score'] if scored_slots else None
+        }
+    }

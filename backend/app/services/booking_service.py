@@ -3,6 +3,7 @@ Comprehensive booking service with conflict prevention and atomic operations
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 import json
@@ -14,6 +15,7 @@ from app.models import (
     BookingStatus, BookingRequestStatus
 )
 from app.services.email_service import email_service
+from app.services.scoring_service import ScoringService
 
 logger = logging.getLogger(__name__)
 
@@ -172,125 +174,216 @@ class BookingService:
         trainer_id: int,
         notes: Optional[str] = None
     ) -> Dict:
-        """Approve a booking request and create confirmed booking"""
+        """
+        Approve a booking request and create confirmed booking with atomic multi-slot support
         
-        with self.atomic_booking():
-            # Get and validate booking request
-            booking_request = self.db.query(BookingRequest).filter(
-                and_(
-                    BookingRequest.id == booking_request_id,
-                    BookingRequest.trainer_id == trainer_id,
-                    BookingRequest.status == BookingRequestStatus.PENDING,
-                    BookingRequest.expires_at > datetime.now()
-                )
-            ).first()
-            
-            if not booking_request:
-                raise ValueError("Booking request not found, expired, or already processed")
-            
-            # Handle both new and old booking requests
-            if booking_request.start_time and booking_request.end_time:
-                # New format: use requested times
-                confirmed_start_time = booking_request.start_time
-                confirmed_end_time = booking_request.end_time
-            else:
-                # Old format: use flexible scheduling (create slots on demand)
-                # This maintains backward compatibility for old requests
-                if not booking_request.preferred_start_date or not booking_request.preferred_end_date:
-                    raise ValueError("Invalid booking request - no time preferences specified")
-                confirmed_start_time = booking_request.preferred_start_date
-                confirmed_end_time = booking_request.preferred_end_date
-            
-            # Find or create time slots based on request type
-            if booking_request.start_time and booking_request.end_time:
-                # New format: find specific requested slot
-                slot_ids = self._find_requested_time_slot(
-                    trainer_id=trainer_id,
-                    start_time=confirmed_start_time,
-                    end_time=confirmed_end_time,
-                    duration_minutes=booking_request.duration_minutes
-                )
+        This method ensures data integrity by:
+        1. Using database transactions for atomic operations
+        2. Proper rollback on any failure
+        3. Validation of all slots before booking
+        4. Comprehensive error logging
+        """
+        logger.info(
+            f"Starting approval process for BookingRequest {booking_request_id} "
+            f"by Trainer {trainer_id}"
+        )
+        
+        try:
+            # Start transaction block
+            with self.atomic_booking():
+                # Get and validate booking request
+                booking_request = self.db.query(BookingRequest).filter(
+                    and_(
+                        BookingRequest.id == booking_request_id,
+                        BookingRequest.trainer_id == trainer_id,
+                        BookingRequest.status == BookingRequestStatus.PENDING,
+                        BookingRequest.expires_at > datetime.now()
+                    )
+                ).first()
                 
-                if not slot_ids:
-                    raise ValueError("Requested time slot is no longer available")
-            else:
-                # Old format: create slots on demand for flexible scheduling
-                slot_ids = self._create_flexible_time_slots(
-                    trainer_id=trainer_id,
-                    start_time=confirmed_start_time,
-                    end_time=confirmed_end_time,
-                    duration_minutes=booking_request.duration_minutes
-                )
-            
-            # Lock the slots
-            if not self.lock_time_slots(slot_ids):
-                raise ValueError("Time slots are no longer available")
-            
-            try:
-                # Create confirmed booking
-                booking = Booking(
-                    client_id=booking_request.client_id,
-                    trainer_id=booking_request.trainer_id,
-                    session_type=booking_request.session_type,
-                    duration_minutes=booking_request.duration_minutes,
-                    location=booking_request.location,
-                    special_requests=booking_request.special_requests,
-                    start_time=confirmed_start_time,
-                    end_time=confirmed_end_time,
-                    confirmed_date=confirmed_start_time,
-                    status=BookingStatus.CONFIRMED,
-                    is_recurring=booking_request.is_recurring,
-                    recurring_pattern=booking_request.recurring_pattern
-                )
+                if not booking_request:
+                    logger.error(
+                        f"BookingRequest {booking_request_id} not found, expired, "
+                        f"or already processed"
+                    )
+                    raise ValueError("Booking request not found, expired, or already processed")
                 
-                self.db.add(booking)
-                self.db.flush()  # Get the ID
-                
-                # Mark time slots as booked
-                self.db.query(TimeSlot).filter(
-                    TimeSlot.id.in_(slot_ids)
-                ).update({
-                    "is_booked": True,
-                    "booking_id": booking.id,
-                    "locked_until": None
-                }, synchronize_session=False)
-                
-                # Update booking request status
-                booking_request.status = BookingRequestStatus.APPROVED
-                booking_request.confirmed_date = confirmed_start_time
-                booking_request.notes = notes
-                
-                # Send confirmation email to client
-                try:
-                    client = self.db.query(User).filter(User.id == booking_request.client_id).first()
-                    trainer = self.db.query(Trainer).filter(Trainer.id == trainer_id).first()
-                    
-                    if client and trainer and trainer.user:
-                        email_service.send_booking_confirmation(
-                            client_email=client.email,
-                            client_name=client.full_name,
-                            trainer_name=trainer.user.full_name,
-                            session_type=booking_request.session_type,
-                            confirmed_date=confirmed_start_time.isoformat(),
-                            confirmed_time=confirmed_start_time.strftime("%I:%M %p"),
-                            duration_minutes=booking_request.duration_minutes,
-                            location=booking_request.location
+                # Handle both new and old booking requests
+                if booking_request.start_time and booking_request.end_time:
+                    # New format: use requested times
+                    confirmed_start_time = booking_request.start_time
+                    confirmed_end_time = booking_request.end_time
+                else:
+                    # Old format: use flexible scheduling (create slots on demand)
+                    if not booking_request.preferred_start_date or not booking_request.preferred_end_date:
+                        logger.error(
+                            f"BookingRequest {booking_request_id} has no time preferences"
                         )
-                except Exception as e:
-                    logger.error(f"Failed to send confirmation email: {str(e)}")
+                        raise ValueError("Invalid booking request - no time preferences specified")
+                    confirmed_start_time = booking_request.preferred_start_date
+                    confirmed_end_time = booking_request.preferred_end_date
                 
-                return {
-                    "booking_id": booking.id,
-                    "booking_request_id": booking_request_id,
-                    "status": "confirmed",
-                    "message": "Booking approved and confirmed",
-                    "confirmed_time": confirmed_start_time.isoformat()
-                }
+                # Calculate number of slots needed for multi-slot bookings
+                duration_minutes = booking_request.duration_minutes
+                slots_needed = duration_minutes // 60
                 
-            except Exception as e:
-                # Unlock slots if booking creation fails
-                self.unlock_time_slots(slot_ids)
-                raise e
+                logger.info(
+                    f"Booking requires {slots_needed} slot(s) for {duration_minutes} minutes"
+                )
+                
+                # Find or create time slots based on request type
+                if booking_request.start_time and booking_request.end_time:
+                    # New format: find specific requested slot(s)
+                    slot_ids = self._find_requested_time_slot_atomic(
+                        trainer_id=trainer_id,
+                        start_time=confirmed_start_time,
+                        end_time=confirmed_end_time,
+                        duration_minutes=duration_minutes
+                    )
+                    
+                    if not slot_ids:
+                        logger.error(
+                            f"Requested time slots not available for BookingRequest {booking_request_id}"
+                        )
+                        raise ValueError("Requested time slot is no longer available")
+                else:
+                    # Old format: create slots on demand for flexible scheduling
+                    slot_ids = self._create_flexible_time_slots(
+                        trainer_id=trainer_id,
+                        start_time=confirmed_start_time,
+                        end_time=confirmed_end_time,
+                        duration_minutes=duration_minutes
+                    )
+                
+                logger.info(
+                    f"Found/created {len(slot_ids)} slot(s) for booking: {slot_ids}"
+                )
+                
+                # CRITICAL: Atomic Multi-Slot Booking Operation
+                # Lock and validate ALL slots before proceeding
+                if not self._atomic_lock_slots(slot_ids):
+                    logger.error(
+                        f"Failed to atomically lock slots {slot_ids} for BookingRequest {booking_request_id}. "
+                        f"Possible concurrency conflict."
+                    )
+                    raise ValueError(
+                        "Time slots are no longer available - another booking may have been made simultaneously"
+                    )
+                
+                try:
+                    # Step 1: Create the Booking record
+                    booking = Booking(
+                        client_id=booking_request.client_id,
+                        trainer_id=booking_request.trainer_id,
+                        session_type=booking_request.session_type,
+                        duration_minutes=booking_request.duration_minutes,
+                        location=booking_request.location,
+                        special_requests=booking_request.special_requests,
+                        start_time=confirmed_start_time,
+                        end_time=confirmed_end_time,
+                        confirmed_date=confirmed_start_time,
+                        status=BookingStatus.CONFIRMED,
+                        is_recurring=booking_request.is_recurring,
+                        recurring_pattern=booking_request.recurring_pattern
+                    )
+                    
+                    self.db.add(booking)
+                    self.db.flush()  # Get the booking ID but don't commit yet
+                    
+                    logger.info(f"Created Booking {booking.id} in transaction")
+                    
+                    # Step 2 & 3: Atomically update ALL time slots
+                    # This is where the atomic operation is critical for multi-slot bookings
+                    updated_count = self.db.query(TimeSlot).filter(
+                        and_(
+                            TimeSlot.id.in_(slot_ids),
+                            TimeSlot.is_booked == False,  # Double-check they're still available
+                            or_(
+                                TimeSlot.locked_until.is_(None),
+                                TimeSlot.locked_until >= datetime.now()  # Our lock
+                            )
+                        )
+                    ).update({
+                        "is_booked": True,
+                        "booking_id": booking.id,
+                        "locked_until": None
+                    }, synchronize_session=False)
+                    
+                    # CRITICAL CHECK: Ensure ALL slots were updated
+                    if updated_count != len(slot_ids):
+                        logger.error(
+                            f"ATOMIC OPERATION FAILED: Expected to update {len(slot_ids)} slots, "
+                            f"but only updated {updated_count}. Rolling back transaction. "
+                            f"Slot IDs: {slot_ids}"
+                        )
+                        raise IntegrityError(
+                            f"Concurrency conflict: Only {updated_count}/{len(slot_ids)} slots "
+                            f"were available for booking. Transaction will be rolled back.",
+                            params=None,
+                            orig=None
+                        )
+                    
+                    logger.info(
+                        f"Successfully updated {updated_count} slot(s) atomically for Booking {booking.id}"
+                    )
+                    
+                    # Step 4: Update booking request status
+                    booking_request.status = BookingRequestStatus.APPROVED
+                    booking_request.confirmed_date = confirmed_start_time
+                    booking_request.notes = notes
+                    
+                    # Transaction will be committed by atomic_booking context manager
+                    logger.info(
+                        f"Booking {booking.id} approved successfully. "
+                        f"Transaction will be committed."
+                    )
+                    
+                    # Send confirmation email (outside critical path)
+                    try:
+                        client = self.db.query(User).filter(User.id == booking_request.client_id).first()
+                        trainer = self.db.query(Trainer).filter(Trainer.id == trainer_id).first()
+                        
+                        if client and trainer and trainer.user:
+                            email_service.send_booking_confirmation(
+                                client_email=client.email,
+                                client_name=client.full_name,
+                                trainer_name=trainer.user.full_name,
+                                session_type=booking_request.session_type,
+                                confirmed_date=confirmed_start_time.isoformat(),
+                                confirmed_time=confirmed_start_time.strftime("%I:%M %p"),
+                                duration_minutes=booking_request.duration_minutes,
+                                location=booking_request.location
+                            )
+                    except Exception as e:
+                        logger.error(f"Failed to send confirmation email: {str(e)}")
+                    
+                    return {
+                        "booking_id": booking.id,
+                        "booking_request_id": booking_request_id,
+                        "status": "confirmed",
+                        "message": "Booking approved and confirmed",
+                        "confirmed_time": confirmed_start_time.isoformat(),
+                        "slots_booked": len(slot_ids)
+                    }
+                    
+                except (IntegrityError, SQLAlchemyError) as e:
+                    # This will trigger the rollback in atomic_booking context manager
+                    logger.error(
+                        f"Database error during atomic booking operation: {str(e)}",
+                        exc_info=True
+                    )
+                    # Unlock slots since transaction failed
+                    self.unlock_time_slots(slot_ids)
+                    raise ValueError(
+                        f"Failed to complete booking due to database conflict: {str(e)}"
+                    )
+                    
+        except Exception as e:
+            logger.error(
+                f"Error approving BookingRequest {booking_request_id}: {str(e)}",
+                exc_info=True
+            )
+            raise
     
     def reject_booking_request(
         self,
@@ -457,6 +550,168 @@ class BookingService:
                 self.unlock_time_slots(new_slot_ids)
                 raise e
     
+    def _atomic_lock_slots(self, slot_ids: List[int]) -> bool:
+        """
+        Atomically lock multiple slots with enhanced validation
+        
+        This method ensures that ALL slots are locked together or none are locked.
+        Critical for multi-slot bookings to prevent partial bookings.
+        
+        Returns:
+            True if all slots were locked successfully, False otherwise
+        """
+        try:
+            lock_until = datetime.now() + timedelta(minutes=5)
+            
+            # Attempt to lock ALL slots atomically with strict conditions
+            locked_count = self.db.query(TimeSlot).filter(
+                and_(
+                    TimeSlot.id.in_(slot_ids),
+                    TimeSlot.is_available == True,
+                    TimeSlot.is_booked == False,
+                    or_(
+                        TimeSlot.locked_until.is_(None),
+                        TimeSlot.locked_until < datetime.now()
+                    )
+                )
+            ).update(
+                {"locked_until": lock_until},
+                synchronize_session=False
+            )
+            
+            self.db.flush()  # Ensure update is applied within transaction
+            
+            # CRITICAL: Verify ALL slots were locked
+            if locked_count == len(slot_ids):
+                logger.info(
+                    f"Successfully locked {locked_count} time slots atomically: {slot_ids}"
+                )
+                return True
+            else:
+                logger.warning(
+                    f"Atomic lock FAILED: Could only lock {locked_count} of {len(slot_ids)} slots. "
+                    f"Required slots: {slot_ids}"
+                )
+                # Unlock any partially locked slots
+                self.unlock_time_slots(slot_ids)
+                return False
+                
+        except Exception as e:
+            logger.error(
+                f"Error during atomic slot locking: {str(e)}",
+                exc_info=True
+            )
+            # Attempt to clean up any locks
+            try:
+                self.unlock_time_slots(slot_ids)
+            except:
+                pass
+            return False
+    
+    def _find_requested_time_slot_atomic(
+        self,
+        trainer_id: int,
+        start_time: datetime,
+        end_time: datetime,
+        duration_minutes: int
+    ) -> List[int]:
+        """
+        Find the specific time slot(s) that were requested by the client
+        with atomic validation for multi-slot bookings
+        
+        This enhanced version ensures all consecutive slots are available
+        before returning them.
+        """
+        # Calculate how many 60-minute slots we need
+        slots_needed = duration_minutes // 60
+        
+        logger.debug(
+            f"Looking for {slots_needed} consecutive slot(s) from "
+            f"{start_time} to {end_time} for trainer {trainer_id}"
+        )
+        
+        if slots_needed == 1:
+            # Single slot
+            slot = self.db.query(TimeSlot).filter(
+                and_(
+                    TimeSlot.trainer_id == trainer_id,
+                    TimeSlot.start_time == start_time,
+                    TimeSlot.end_time == end_time,
+                    TimeSlot.duration_minutes == 60,
+                    TimeSlot.is_available == True,
+                    TimeSlot.is_booked == False,
+                    or_(
+                        TimeSlot.locked_until.is_(None),
+                        TimeSlot.locked_until < datetime.now()
+                    )
+                )
+            ).first()
+            
+            if slot:
+                logger.debug(f"Found single slot: {slot.id}")
+                return [slot.id]
+            else:
+                logger.warning(
+                    f"Single slot not found or not available for time {start_time}"
+                )
+                return []
+        
+        else:
+            # Multiple consecutive slots required
+            base_slots = self.db.query(TimeSlot).filter(
+                and_(
+                    TimeSlot.trainer_id == trainer_id,
+                    TimeSlot.start_time >= start_time,
+                    TimeSlot.end_time <= end_time,
+                    TimeSlot.duration_minutes == 60,
+                    TimeSlot.is_available == True,
+                    TimeSlot.is_booked == False,
+                    or_(
+                        TimeSlot.locked_until.is_(None),
+                        TimeSlot.locked_until < datetime.now()
+                    )
+                )
+            ).order_by(TimeSlot.start_time).all()
+            
+            logger.debug(f"Found {len(base_slots)} potential slots in time range")
+            
+            # Find consecutive slots
+            consecutive_slots = []
+            for i, slot in enumerate(base_slots):
+                if len(consecutive_slots) == slots_needed:
+                    break
+                    
+                if not consecutive_slots:
+                    consecutive_slots = [slot]
+                else:
+                    # Check if this slot is consecutive to the last one
+                    last_slot = consecutive_slots[-1]
+                    if slot.start_time == last_slot.end_time:
+                        consecutive_slots.append(slot)
+                        logger.debug(
+                            f"Slot {slot.id} is consecutive to {last_slot.id}"
+                        )
+                    else:
+                        # Gap found, start over
+                        logger.debug(
+                            f"Gap detected between {last_slot.id} and {slot.id}, "
+                            f"restarting search"
+                        )
+                        consecutive_slots = [slot]
+            
+            if len(consecutive_slots) == slots_needed:
+                slot_ids = [slot.id for slot in consecutive_slots]
+                logger.info(
+                    f"Found {slots_needed} consecutive slots: {slot_ids}"
+                )
+                return slot_ids
+            else:
+                logger.warning(
+                    f"Could not find {slots_needed} consecutive slots. "
+                    f"Only found {len(consecutive_slots)}"
+                )
+                return []
+    
     def _find_requested_time_slot(
         self,
         trainer_id: int,
@@ -464,7 +719,7 @@ class BookingService:
         end_time: datetime,
         duration_minutes: int
     ) -> List[int]:
-        """Find the specific time slot that was requested by the client"""
+        """Find the specific time slot that was requested by the client (legacy method)"""
         
         # Calculate how many 60-minute slots we need
         slots_needed = duration_minutes // 60
@@ -647,3 +902,86 @@ class BookingService:
             })
         
         return result
+    
+    def find_best_slots_with_scoring(
+        self,
+        booking_request: BookingRequest,
+        trainer_id: int,
+        max_results: int = 5
+    ) -> List[Dict]:
+        """
+        Find the best available time slots using W_C scoring algorithm
+        
+        Args:
+            booking_request: The booking request with client preferences
+            trainer_id: ID of the trainer
+            max_results: Maximum number of results to return
+            
+        Returns:
+            List of scored slots with their W_C scores and breakdowns
+        """
+        logger.info(
+            f"Finding best slots for BookingRequest {booking_request.id} "
+            f"with Trainer {trainer_id} using W_C scoring"
+        )
+        
+        try:
+            # Get date range for slot search
+            if booking_request.preferred_start_date and booking_request.preferred_end_date:
+                start_date = booking_request.preferred_start_date
+                end_date = booking_request.preferred_end_date
+            else:
+                # Default to next 2 weeks
+                start_date = datetime.now()
+                end_date = datetime.now() + timedelta(days=14)
+            
+            # Fetch available time slots
+            available_slots = self.db.query(TimeSlot).filter(
+                and_(
+                    TimeSlot.trainer_id == trainer_id,
+                    TimeSlot.start_time >= start_date,
+                    TimeSlot.start_time <= end_date,
+                    TimeSlot.is_available == True,
+                    TimeSlot.is_booked == False,
+                    or_(
+                        TimeSlot.locked_until.is_(None),
+                        TimeSlot.locked_until < datetime.now()
+                    )
+                )
+            ).order_by(TimeSlot.start_time).all()
+            
+            logger.info(
+                f"Found {len(available_slots)} available slots for scoring"
+            )
+            
+            if not available_slots:
+                return []
+            
+            # Use ScoringService to rank slots
+            scored_slots = ScoringService.rank_time_slots(
+                booking_request=booking_request,
+                available_slots=available_slots,
+                duration_minutes=booking_request.duration_minutes
+            )
+            
+            # Log any slots requiring manual review
+            manual_review_slots = [
+                slot for slot in scored_slots 
+                if slot.get('requires_manual_review', False)
+            ]
+            
+            if manual_review_slots:
+                logger.warning(
+                    f"Found {len(manual_review_slots)} slots requiring manual review "
+                    f"for BookingRequest {booking_request.id}"
+                )
+            
+            # Return top results
+            return scored_slots[:max_results]
+            
+        except Exception as e:
+            logger.error(
+                f"Error finding best slots with scoring: {str(e)}",
+                exc_info=True
+            )
+            return []
