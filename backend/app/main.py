@@ -78,7 +78,7 @@ async def health_check(db: Session = Depends(get_db)):
 
 
 # Include routers
-from app.routers import auth, trainers, sessions, availability, bookings, programs, messages, session_tracking, analytics, time_slots, booking_requests, trainer_registration, booking_management, payments
+from app.routers import auth, trainers, sessions, availability, bookings, programs, messages, session_tracking, analytics, time_slots, booking_requests, trainer_registration, booking_management, payments, optimal_schedule, trainer_profile, scheduling_preferences
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(trainers.router, prefix="/api/trainers", tags=["Trainers"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
@@ -93,6 +93,9 @@ app.include_router(session_tracking.router, prefix="/api", tags=["Session Tracki
 app.include_router(analytics.router, prefix="/api", tags=["Analytics"])
 app.include_router(time_slots.router, prefix="/api", tags=["Time Slots"])
 app.include_router(trainer_registration.router, tags=["Trainer Registration"])
+app.include_router(trainer_profile.router, tags=["Trainer Profile"])
+app.include_router(scheduling_preferences.router, tags=["Scheduling Preferences"])
+app.include_router(optimal_schedule.router, prefix="/api", tags=["Optimal Schedule"])  # Provides /api/trainer/me/optimal-schedule endpoint
 
 # TODO: Add more routers as we build them
 # from app.routers import users, programs, messages

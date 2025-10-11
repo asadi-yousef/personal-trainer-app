@@ -1,60 +1,94 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface FeatherIconProps {
   name: string;
   className?: string;
   size?: number;
+  strokeWidth?: number;
   [key: string]: any;
 }
 
-export default function FeatherIcon({ name, className = '', size = 24, ...props }: FeatherIconProps) {
-  const iconRef = useRef<HTMLElement>(null);
-  const isReplaced = useRef(false);
+// Cache for loaded SVGs to avoid repeated imports
+const svgCache = new Map<string, string>();
+let featherLib: any = null;
+
+export default function FeatherIcon({ 
+  name, 
+  className = '', 
+  size = 24, 
+  strokeWidth = 2,
+  ...props 
+}: FeatherIconProps) {
+  const [svg, setSvg] = useState<string>('');
+  const mounted = useRef(false);
 
   useEffect(() => {
-    const replaceIcon = async () => {
-      if (!iconRef.current || isReplaced.current) return;
+    mounted.current = true;
+    
+    const loadIcon = async () => {
+      if (!mounted.current || typeof window === 'undefined') return;
       
       try {
-        const feather = (await import('feather-icons')).default;
-        
-        // Create a new element to avoid DOM manipulation issues
-        const newElement = document.createElement('i');
-        newElement.setAttribute('data-feather', name);
-        newElement.className = className;
-        
-        // Copy all props to the new element
-        Object.entries(props).forEach(([key, value]) => {
-          if (key !== 'children') {
-            newElement.setAttribute(key, String(value));
+        // Check cache first
+        const cacheKey = `${name}-${size}-${strokeWidth}`;
+        if (svgCache.has(cacheKey)) {
+          if (mounted.current) {
+            setSvg(svgCache.get(cacheKey)!);
           }
-        });
-        
-        // Replace the current element
-        if (iconRef.current.parentNode) {
-          iconRef.current.parentNode.replaceChild(newElement, iconRef.current);
-          iconRef.current = newElement;
+          return;
         }
-        
-        // Replace feather icons
-        feather.replace();
-        isReplaced.current = true;
+
+        // Load feather-icons library once
+        if (!featherLib) {
+          featherLib = (await import('feather-icons')).default;
+        }
+
+        // Get the SVG string for the icon
+        if (featherLib.icons[name]) {
+          const svgString = featherLib.icons[name].toSvg({
+            width: size,
+            height: size,
+            'stroke-width': strokeWidth,
+            class: className
+          });
+          
+          // Cache it
+          svgCache.set(cacheKey, svgString);
+          
+          if (mounted.current) {
+            setSvg(svgString);
+          }
+        }
       } catch (error) {
         console.warn('Failed to load feather icon:', name, error);
       }
     };
 
-    replaceIcon();
-  }, [name, className, size, props]);
+    loadIcon();
+
+    return () => {
+      mounted.current = false;
+    };
+  }, [name, className, size, strokeWidth]);
+
+  // Render the SVG directly without DOM manipulation
+  if (!svg) {
+    // Placeholder while loading
+    return (
+      <span
+        className={className}
+        style={{ display: 'inline-block', width: size, height: size }}
+        {...props}
+      />
+    );
+  }
 
   return (
-    <i
-      ref={iconRef}
-      data-feather={name}
+    <span
       className={className}
-      style={{ width: size, height: size }}
+      dangerouslySetInnerHTML={{ __html: svg }}
       {...props}
     />
   );

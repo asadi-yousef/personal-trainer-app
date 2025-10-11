@@ -1,19 +1,22 @@
 'use client';
 
-import { useEffect } from 'react';
 import { User } from '../lib/data';
-import { useFeatherIcons } from '../utils/featherIcons';
+import FeatherIcon from './FeatherIcon';
 
 interface PageHeaderProps {
-  user: User;
+  user?: User | null;
+  title?: string;
+  subtitle?: string;
 }
 
 /**
  * Page header component with title, notifications, and user info
  */
-export default function PageHeader({ user }: PageHeaderProps) {
-  // Temporarily disable feather icons to prevent DOM conflicts
-  // useFeatherIcons([user]);
+export default function PageHeader({ user, title = 'Dashboard', subtitle = 'Track your fitness progress and manage your sessions' }: PageHeaderProps) {
+  // Default user values if user is null
+  const displayName = user?.name || user?.full_name || 'User';
+  const displayRole = user?.role || 'Member';
+  const displayAvatar = user?.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayName) + '&background=3B82F6&color=fff';
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
@@ -21,31 +24,41 @@ export default function PageHeader({ user }: PageHeaderProps) {
         <div className="flex items-center justify-between">
           {/* Page Title */}
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-600">Track your fitness progress and manage your sessions</p>
+            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+            <p className="text-gray-600">{subtitle}</p>
           </div>
 
           {/* Right Side */}
           <div className="flex items-center space-x-4">
             {/* Notifications */}
-            <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg focus-ring transition-smooth">
-              <i data-feather="bell" className="h-6 w-6"></i>
+            <button 
+              className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg focus-ring transition-smooth"
+              aria-label="Notifications"
+            >
+              <FeatherIcon name="bell" size={24} className="inline-block" />
               <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             </button>
 
             {/* User Profile */}
             <div className="flex items-center space-x-3">
               <img
-                src={user.avatar}
-                alt={user.name}
-                className="w-8 h-8 rounded-full"
+                src={displayAvatar}
+                alt={displayName}
+                className="w-8 h-8 rounded-full object-cover"
+                onError={(e) => {
+                  // Fallback to default avatar if image fails to load
+                  (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayName) + '&background=3B82F6&color=fff';
+                }}
               />
               <div className="hidden md:block">
-                <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                <p className="text-xs text-gray-500">{user.role}</p>
+                <p className="text-sm font-medium text-gray-900">{displayName}</p>
+                <p className="text-xs text-gray-500 capitalize">{displayRole}</p>
               </div>
-              <button className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg focus-ring transition-smooth">
-                <i data-feather="chevron-down" className="h-4 w-4"></i>
+              <button 
+                className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg focus-ring transition-smooth"
+                aria-label="User menu"
+              >
+                <FeatherIcon name="chevron-down" size={16} className="inline-block" />
               </button>
             </div>
           </div>

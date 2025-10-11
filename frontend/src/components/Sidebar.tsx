@@ -51,7 +51,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       title: 'Main',
       items: [
         { icon: 'home', label: 'Dashboard', href: '/trainer' },
-        { icon: 'zap', label: 'Schedule Optimization', href: '/trainer/schedule' },
+        { icon: 'zap', label: 'Optimal Schedule', href: '/trainer/schedule' },
         { icon: 'calendar', label: 'Bookings', href: '/trainer/bookings' },
         { icon: 'clock', label: 'Availability', href: '/trainer/availability' },
         { icon: 'clipboard', label: 'Programs', href: '/trainer/programs' },
@@ -62,6 +62,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     {
       title: 'Settings',
       items: [
+        { icon: 'user', label: 'Profile Settings', href: '/trainer/profile' },
+        { icon: 'sliders', label: 'Scheduling Preferences', href: '/trainer/scheduling-preferences' },
         { icon: 'settings', label: 'Account Settings', href: '/trainer/settings' },
         { icon: 'help-circle', label: 'Help & Support', href: '/trainer/help' },
       ],

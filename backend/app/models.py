@@ -168,6 +168,7 @@ class Trainer(Base):
     programs = relationship("Program", back_populates="trainer")
     availability_schedule = relationship("TrainerAvailability", back_populates="trainer")
     payments = relationship("Payment", back_populates="trainer")
+    scheduling_preferences = relationship("TrainerSchedulingPreferences", back_populates="trainer", uselist=False)
     
     # Properties for JSON fields
     @property
@@ -208,6 +209,74 @@ class Trainer(Base):
             self.profile_completion_date = func.now()
             return True
         return False
+
+
+class TrainerSchedulingPreferences(Base):
+    """Trainer scheduling preferences for optimal schedule algorithm"""
+    __tablename__ = "trainer_scheduling_preferences"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    trainer_id = Column(Integer, ForeignKey("trainers.id"), nullable=False, unique=True)
+    
+    # Session constraints
+    max_sessions_per_day = Column(Integer, default=8, nullable=False)  # Maximum sessions per day
+    min_break_minutes = Column(Integer, default=15, nullable=False)  # Minimum break between sessions
+    prefer_consecutive_sessions = Column(Boolean, default=True)  # Prefer back-to-back sessions
+    
+    # Working hours
+    work_start_time = Column(String(10), default="08:00")  # Format: "HH:MM"
+    work_end_time = Column(String(10), default="18:00")    # Format: "HH:MM"
+    
+    # Days off (JSON array of day numbers: 0=Monday, 6=Sunday)
+    days_off = Column(Text, default="[]")  # JSON array like [6] for Sunday off
+    
+    # Time preferences (JSON array)
+    preferred_time_blocks = Column(Text, default='["morning", "afternoon"]')  # morning, afternoon, evening
+    
+    # Priority settings
+    prioritize_recurring_clients = Column(Boolean, default=True)  # Give priority to recurring clients
+    prioritize_high_value_sessions = Column(Boolean, default=False)  # Prioritize longer/more expensive sessions
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    trainer = relationship("Trainer", back_populates="scheduling_preferences")
+    
+    # Helper properties for JSON fields
+    @property
+    def days_off_list(self):
+        """Parse days_off JSON string to list"""
+        if self.days_off:
+            try:
+                import json
+                return json.loads(self.days_off)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return []
+    
+    @days_off_list.setter
+    def days_off_list(self, value):
+        """Set days_off from list"""
+        import json
+        self.days_off = json.dumps(value)
+    
+    @property
+    def preferred_time_blocks_list(self):
+        """Parse preferred_time_blocks JSON string to list"""
+        if self.preferred_time_blocks:
+            try:
+                import json
+                return json.loads(self.preferred_time_blocks)
+            except (json.JSONDecodeError, TypeError):
+                return ["morning", "afternoon"]
+        return ["morning", "afternoon"]
+    
+    @preferred_time_blocks_list.setter
+    def preferred_time_blocks_list(self, value):
+        """Set preferred_time_blocks from list"""
+        import json
+        self.preferred_time_blocks = json.dumps(value)
 
 
 class Program(Base):
@@ -854,6 +923,7 @@ class BookingRequest(Base):
     
     # Status and metadata
     status = Column(Enum(BookingRequestStatus), default=BookingRequestStatus.PENDING)
+    priority_score = Column(Float, default=5.0)  # For optimization algorithm (1-10 scale)
     confirmed_date = Column(DateTime(timezone=True))
     alternative_dates = Column(Text)  # JSON array of alternative dates
     notes = Column(Text)

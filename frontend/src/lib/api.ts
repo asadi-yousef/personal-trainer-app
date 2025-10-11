@@ -112,10 +112,41 @@ class ApiClient {
         error = { detail: `HTTP ${response.status}: ${response.statusText}` };
       }
       console.log('API Error Response:', { status: response.status, error, url });
-      throw new Error(error.detail || `HTTP ${response.status}`);
+      
+      // Better error message extraction
+      const errorMessage = typeof error.detail === 'string' 
+        ? error.detail 
+        : error.message || JSON.stringify(error) || `HTTP ${response.status}`;
+      
+      const apiError = new Error(errorMessage);
+      (apiError as any).response = { status: response.status, data: error };
+      throw apiError;
     }
 
     return response.json();
+  }
+
+  // HTTP method shortcuts
+  async get<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, { method: 'GET' });
+  }
+
+  async post<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async put<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async delete<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, { method: 'DELETE' });
   }
 
   // Authentication methods
@@ -692,6 +723,73 @@ class ApiClient {
     });
   }
 
+  // Trainer Profile Management
+  async getMyTrainerProfile(): Promise<any> {
+    return this.request('/trainer-profile/me');
+  }
+
+  async updateBasicInfo(data: {
+    bio?: string;
+    experience_years?: number;
+    certifications?: string;
+  }): Promise<any> {
+    return this.request('/trainer-profile/basic-info', {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async updateTrainingInfo(data: {
+    training_types?: string[];
+    specialty?: string;
+  }): Promise<any> {
+    return this.request('/trainer-profile/training-info', {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async updateGymInfo(data: {
+    gym_name?: string;
+    gym_address?: string;
+    gym_city?: string;
+    gym_state?: string;
+    gym_zip_code?: string;
+    gym_phone?: string;
+  }): Promise<any> {
+    return this.request('/trainer-profile/gym-info', {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async updatePricing(data: {
+    price_per_hour: number;
+  }): Promise<any> {
+    return this.request('/trainer-profile/pricing', {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+  }
+
+  // Scheduling Preferences
+  async getSchedulingPreferences(): Promise<any> {
+    return this.request('/scheduling-preferences/me');
+  }
+
+  async updateSchedulingPreferences(data: any): Promise<any> {
+    return this.request('/scheduling-preferences/me', {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async resetSchedulingPreferences(): Promise<any> {
+    return this.request('/scheduling-preferences/reset', {
+      method: 'POST'
+    });
+  }
+
   // Utility methods
   isAuthenticated(): boolean {
     return !!this.token;
@@ -838,5 +936,19 @@ export const payments = {
   getById: (id: number) => apiClient.getPaymentById(id),
   getStats: () => apiClient.getPaymentStats(),
   refund: (data: any) => apiClient.refundPayment(data),
+};
+
+export const trainerProfile = {
+  getMyProfile: () => apiClient.getMyTrainerProfile(),
+  updateBasicInfo: (data: any) => apiClient.updateBasicInfo(data),
+  updateTrainingInfo: (data: any) => apiClient.updateTrainingInfo(data),
+  updateGymInfo: (data: any) => apiClient.updateGymInfo(data),
+  updatePricing: (data: any) => apiClient.updatePricing(data),
+};
+
+export const schedulingPreferences = {
+  get: () => apiClient.getSchedulingPreferences(),
+  update: (data: any) => apiClient.updateSchedulingPreferences(data),
+  reset: () => apiClient.resetSchedulingPreferences(),
 };
 

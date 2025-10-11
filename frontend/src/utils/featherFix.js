@@ -1,57 +1,87 @@
-// Comprehensive fix for feather icon DOM manipulation errors
+/**
+ * Global feather icons fix to prevent DOM manipulation errors
+ * This prevents multiple simultaneous calls and adds proper error handling
+ */
+
+let isReplacing = false;
+let replaceTimeout = null;
+const DEBOUNCE_MS = 150;
+
+// Override the global feather.replace to add safety checks
 if (typeof window !== 'undefined') {
-  let featherLoaded = false;
-  let isReplacing = false;
-  
-  const safeFeatherReplace = async () => {
-    if (isReplacing) return;
+  // Store original replace method
+  let originalReplace = null;
+
+  // Safe wrapper around feather.replace()
+  const safeReplace = async () => {
+    // Prevent multiple simultaneous calls
+    if (isReplacing) {
+      return;
+    }
+
     isReplacing = true;
-    
+
     try {
-      if (!featherLoaded) {
-        const feather = await import('feather-icons');
-        window.feather = feather.default;
-        featherLoaded = true;
+      // Dynamically import feather-icons
+      const feather = (await import('feather-icons')).default;
+
+      // Store original replace if not already stored
+      if (!originalReplace) {
+        originalReplace = feather.replace.bind(feather);
       }
-      
-      // Use requestAnimationFrame to ensure DOM is ready
-      requestAnimationFrame(() => {
-        try {
-          if (window.feather) {
-            window.feather.replace();
-          }
-        } catch (error) {
-          console.warn('Feather icon replacement failed:', error);
-        } finally {
-          isReplacing = false;
-        }
-      });
+
+      // Only replace if there are icons to replace
+      const featherElements = document.querySelectorAll('[data-feather]:not([data-replaced="true"])');
+      if (featherElements.length > 0) {
+        // Call original replace
+        originalReplace();
+
+        // Mark elements as replaced
+        featherElements.forEach((el) => {
+          el.setAttribute('data-replaced', 'true');
+        });
+      }
     } catch (error) {
-      console.warn('Failed to load feather icons:', error);
+      console.warn('Feather icons error:', error);
+    } finally {
       isReplacing = false;
     }
   };
-  
-  // Override the global feather.replace function
-  window.addEventListener('DOMContentLoaded', () => {
-    // Set up a global safe replace function
-    window.safeFeatherReplace = safeFeatherReplace;
-    
-    // Override any existing feather.replace calls
-    const originalConsoleError = console.error;
-    console.error = function(...args) {
-      if (args[0] && args[0].includes && args[0].includes('removeChild')) {
-        // Suppress feather icon DOM errors
-        return;
-      }
-      originalConsoleError.apply(console, args);
-    };
-  });
-  
-  // Also run on page load
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', safeFeatherReplace);
-  } else {
-    safeFeatherReplace();
-  }
+
+  // Debounced replace function
+  window.safeFeatherReplace = () => {
+    if (replaceTimeout) {
+      clearTimeout(replaceTimeout);
+    }
+
+    replaceTimeout = setTimeout(() => {
+      safeReplace();
+    }, DEBOUNCE_MS);
+  };
+
+  // Override window.feather if available
+  const checkAndOverride = async () => {
+    try {
+      const feather = (await import('feather-icons')).default;
+      const originalMethod = feather.replace.bind(feather);
+
+      feather.replace = () => {
+        window.safeFeatherReplace();
+      };
+    } catch (error) {
+      // Feather not loaded yet
+    }
+  };
+
+  // Try to override after a short delay
+  setTimeout(checkAndOverride, 100);
 }
+
+// Export for use in components
+export const initFeatherFix = () => {
+  if (typeof window !== 'undefined' && window.safeFeatherReplace) {
+    window.safeFeatherReplace();
+  }
+};
+
+export default initFeatherFix;
