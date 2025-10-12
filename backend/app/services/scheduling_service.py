@@ -201,7 +201,16 @@ class SchedulingService:
         time_slots, 
         booking_request: SmartBookingRequest
     ) -> List[Dict]:
-        """Score time slots based on optimization criteria"""
+        """
+        Score time slots based on optimization criteria
+        
+        Scoring is designed to scale from 0-100, where:
+        - 90-100: Perfect match (preferred time, date, and all criteria met)
+        - 70-89: Great match (most criteria met)
+        - 50-69: Good match (some criteria met)
+        - 30-49: Fair match (basic availability)
+        - 0-29: Poor match
+        """
         scored_slots = []
         
         for slot in time_slots:
@@ -221,45 +230,74 @@ class SchedulingService:
                 slot_id = slot.id
                 is_combined = False
             
-            # Base score for availability
-            score += 10.0
+            # Base score for availability (0-20 points)
+            score += 20.0
             
-            # Time preference scoring
+            # Time preference scoring (0-40 points) - HIGHEST WEIGHT
             if booking_request.preferred_times:
                 time_str = start_time.strftime("%H:%M")
                 if time_str in booking_request.preferred_times:
-                    score += 25.0  # High bonus for preferred times
+                    score += 40.0  # Perfect match for preferred time
                 else:
-                    score += 5.0   # Small bonus for any available time
+                    # Check if close to preferred times (within 1 hour)
+                    hour = start_time.hour
+                    minute = start_time.minute
+                    is_close_to_preferred = False
+                    for pref_time in booking_request.preferred_times:
+                        try:
+                            pref_hour, pref_minute = map(int, pref_time.split(':'))
+                            time_diff_minutes = abs((hour * 60 + minute) - (pref_hour * 60 + pref_minute))
+                            if time_diff_minutes <= 60:  # Within 1 hour
+                                score += 20.0
+                                is_close_to_preferred = True
+                                break
+                        except:
+                            pass
+                    
+                    if not is_close_to_preferred:
+                        score += 5.0   # Small bonus for any available time
+            else:
+                # No preferred times specified, give moderate score
+                score += 20.0
             
-            # Convenience scoring (morning/afternoon slots)
+            # Convenience scoring - time of day (0-20 points)
             hour = start_time.hour
-            if 9 <= hour <= 11:  # Morning slots
-                score += 15.0
+            if 9 <= hour <= 11:  # Morning slots (peak convenience)
+                score += 20.0
             elif 14 <= hour <= 16:  # Afternoon slots
-                score += 12.0
+                score += 18.0
             elif 17 <= hour <= 19:  # Evening slots
+                score += 15.0
+            elif 7 <= hour <= 9 or 11 <= hour <= 14:  # Early morning or midday
+                score += 12.0
+            else:  # Late evening or very early
                 score += 8.0
             
-            # Weekend penalty/bonus
-            if booking_request.allow_weekends:
-                # Weekend slots get a small bonus for flexibility
-                if start_time.weekday() >= 5:  # Saturday or Sunday
-                    score += 5.0
+            # Day of week scoring (0-10 points)
+            weekday = start_time.weekday()
+            if weekday < 5:  # Weekday
+                score += 10.0
+            elif booking_request.allow_weekends:
+                score += 8.0  # Weekend with permission
+            else:
+                score += 3.0  # Weekend not preferred but available
             
-            # Duration optimization
+            # Duration optimization (0-5 points)
             if booking_request.duration_minutes == 60:
-                score += 5.0  # Bonus for standard 1-hour sessions
+                score += 5.0  # Standard 1-hour sessions
+            elif booking_request.duration_minutes == 90:
+                score += 4.0  # 90-minute sessions
             elif booking_request.duration_minutes == 120:
-                score += 8.0  # Bonus for 2-hour sessions
+                score += 3.0  # 2-hour sessions
+            else:
+                score += 2.0  # Other durations
             
-            # Bonus for combined slots (more flexible)
+            # Bonus for combined slots (0-5 points)
             if is_combined:
-                score += 3.0
+                score += 5.0  # Higher bonus for successfully combining slots
             
-            # Add randomization factor to avoid always getting the same results
-            import random
-            score += random.uniform(0, 5)
+            # Ensure score doesn't exceed 100
+            score = min(100.0, score)
             
             scored_slot = {
                 'slot_id': slot_id,

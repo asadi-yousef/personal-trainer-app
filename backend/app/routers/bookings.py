@@ -121,6 +121,9 @@ async def find_optimal_schedule(
     1. If trainer_id is provided, finds optimal slots for that trainer
     2. If no trainer_id, evaluates all trainers and finds the best overall match
     3. Uses greedy algorithm to prioritize highest-scoring options
+    
+    NOTE: This endpoint only SUGGESTS optimal times. It does NOT create a booking.
+    The client must explicitly book a slot through a separate booking request.
     """
     
     # Initialize scheduling service
@@ -138,95 +141,10 @@ async def find_optimal_schedule(
             detail=result['message']
         )
     
-    # Get the best time slot and book it
-    best_slot = result['best_slot']
-    if best_slot and 'slot_id' in best_slot:
-        # Check if this is a combined slot
-        if best_slot.get('is_combined', False):
-            # For combined slots, check all component slots
-            component_slots = best_slot.get('component_slots', [])
-            if not component_slots:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid combined slot configuration"
-                )
-            
-            # Check all component slots are available
-            time_slots = db.query(TimeSlot).filter(TimeSlot.id.in_(component_slots)).all()
-            if len(time_slots) != len(component_slots):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Some component slots are no longer available"
-                )
-            
-            for time_slot in time_slots:
-                if time_slot.is_booked:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Selected time slot is no longer available"
-                    )
-            
-            # Use the first slot's start time for the booking
-            start_time_slot = time_slots[0]
-        else:
-            # Regular single slot
-            time_slot = db.query(TimeSlot).filter(TimeSlot.id == best_slot['slot_id']).first()
-            
-            if not time_slot or time_slot.is_booked:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Selected time slot is no longer available"
-                )
-            
-            time_slots = [time_slot]
-            start_time_slot = time_slot
-        
-        # Create the booking record
-        booking = Booking(
-            client_id=current_user.id,
-            trainer_id=result['trainer_id'],
-            session_type=booking_request.session_type,
-            duration_minutes=booking_request.duration_minutes,
-            location=booking_request.location,
-            special_requests=booking_request.special_requests,
-            confirmed_date=start_time_slot.start_time,
-            preferred_start_date=booking_request.earliest_date,
-            preferred_end_date=booking_request.latest_date,
-            preferred_times=json.dumps(booking_request.preferred_times) if booking_request.preferred_times else None,
-            status=BookingStatus.CONFIRMED
-        )
-        
-        db.add(booking)
-        db.commit()
-        db.refresh(booking)
-        
-        # Mark all component slots as booked
-        for time_slot in time_slots:
-            time_slot.is_booked = True
-            time_slot.booking_id = booking.id
-        
-        db.commit()
-    else:
-        # Fallback: create pending booking without specific time slot
-        booking = Booking(
-            client_id=current_user.id,
-            trainer_id=result['trainer_id'],
-            session_type=booking_request.session_type,
-            duration_minutes=booking_request.duration_minutes,
-            location=booking_request.location,
-            special_requests=booking_request.special_requests,
-            preferred_start_date=booking_request.earliest_date,
-            preferred_end_date=booking_request.latest_date,
-            preferred_times=json.dumps(booking_request.preferred_times) if booking_request.preferred_times else None,
-            status=BookingStatus.PENDING
-        )
-        
-        db.add(booking)
-        db.commit()
-        db.refresh(booking)
-    
+    # Return suggestions without creating a booking
+    # The user will need to explicitly book one of the suggested slots
     return SmartBookingResponse(
-        booking_id=booking.id,
+        booking_id=None,  # No booking created yet
         suggested_slots=result['suggested_slots'],
         best_slot=result['best_slot'],
         confidence_score=result['confidence_score'],

@@ -17,6 +17,7 @@ from app.schemas.optimal_schedule import (
     OptimalScheduleStatistics
 )
 from app.services.optimal_schedule_service import OptimalScheduleService
+from app.services.email_service import email_service
 
 
 router = APIRouter()
@@ -155,6 +156,9 @@ async def apply_optimal_schedule(
     2. Assign the time slots to the bookings
     3. Mark the slots as booked
     """
+    from app.models import BookingRequest, BookingRequestStatus, TimeSlot, Booking
+    from app.schemas.booking import BookingStatus
+    
     # Verify trainer exists
     trainer = db.query(Trainer).filter(Trainer.id == trainer_id).first()
     if not trainer:
@@ -171,18 +175,139 @@ async def apply_optimal_schedule(
                 detail="Not authorized to modify this trainer's schedule"
             )
     
-    # TODO: Implement the actual booking confirmation logic
-    # This would involve:
-    # 1. Validating that the booking requests still exist and are PENDING
-    # 2. Checking that the time slots are still available
-    # 3. Creating Booking records from BookingRequest records
-    # 4. Marking TimeSlots as booked
-    # 5. Updating BookingRequest status to APPROVED
+    # Track results
+    applied_entries = []
+    failed_entries = []
+    
+    for booking_request_id in entry_ids:
+        try:
+            # Get the booking request
+            booking_request = db.query(BookingRequest).filter(
+                BookingRequest.id == booking_request_id,
+                BookingRequest.trainer_id == trainer_id
+            ).first()
+            
+            if not booking_request:
+                failed_entries.append({
+                    'booking_request_id': booking_request_id,
+                    'reason': 'Booking request not found'
+                })
+                continue
+            
+            # Check if already processed
+            if booking_request.status != BookingRequestStatus.PENDING:
+                failed_entries.append({
+                    'booking_request_id': booking_request_id,
+                    'reason': f'Booking request already {booking_request.status}'
+                })
+                continue
+            
+            # Get the proposed slot IDs from the optimal schedule service
+            # Re-generate to get the slot assignments
+            service = OptimalScheduleService(db)
+            result = service.generate_optimal_schedule(trainer_id)
+            
+            # Find the entry for this booking request
+            proposed_entry = None
+            for entry in result['proposed_entries']:
+                if entry['booking_request_id'] == booking_request_id:
+                    proposed_entry = entry
+                    break
+            
+            if not proposed_entry:
+                failed_entries.append({
+                    'booking_request_id': booking_request_id,
+                    'reason': 'No time slots available for this request'
+                })
+                continue
+            
+            # Verify all time slots are still available
+            slot_ids = proposed_entry['slot_ids']
+            time_slots = db.query(TimeSlot).filter(TimeSlot.id.in_(slot_ids)).all()
+            
+            if len(time_slots) != len(slot_ids):
+                failed_entries.append({
+                    'booking_request_id': booking_request_id,
+                    'reason': 'Some time slots are no longer available'
+                })
+                continue
+            
+            # Check if any slots are already booked
+            if any(slot.is_booked for slot in time_slots):
+                failed_entries.append({
+                    'booking_request_id': booking_request_id,
+                    'reason': 'One or more time slots are already booked'
+                })
+                continue
+            
+            # Create the booking
+            booking = Booking(
+                client_id=booking_request.client_id,
+                trainer_id=booking_request.trainer_id,
+                session_type=booking_request.session_type,
+                duration_minutes=booking_request.duration_minutes,
+                location=booking_request.location,
+                special_requests=booking_request.special_requests,
+                confirmed_date=proposed_entry['start_time'],
+                preferred_start_date=booking_request.preferred_start_date,
+                preferred_end_date=booking_request.preferred_end_date,
+                preferred_times=booking_request.preferred_times,
+                status=BookingStatus.CONFIRMED
+            )
+            
+            db.add(booking)
+            db.flush()  # Get the booking ID
+            
+            # Mark time slots as booked
+            for time_slot in time_slots:
+                time_slot.is_booked = True
+                time_slot.booking_id = booking.id
+            
+            # Update booking request status
+            booking_request.status = BookingRequestStatus.APPROVED
+            
+            # Commit transaction for this entry
+            db.commit()
+            
+            applied_entries.append({
+                'booking_request_id': booking_request_id,
+                'booking_id': booking.id,
+                'client_name': proposed_entry['client_name'],
+                'start_time': proposed_entry['start_time'].isoformat(),
+                'end_time': proposed_entry['end_time'].isoformat()
+            })
+            
+            # Send email notification to client
+            try:
+                client = db.query(User).filter(User.id == booking_request.client_id).first()
+                if client and client.email:
+                    await email_service.send_booking_confirmation(
+                        client_email=client.email,
+                        client_name=client.full_name,
+                        trainer_name=trainer.user.full_name,
+                        session_type=booking.session_type,
+                        confirmed_date=proposed_entry['start_time'].isoformat(),
+                        confirmed_time=proposed_entry['start_time'].strftime("%H:%M"),
+                        duration_minutes=booking.duration_minutes,
+                        location=booking.location or "Not specified"
+                    )
+            except Exception as email_error:
+                # Log email error but don't fail the booking
+                print(f"Failed to send confirmation email: {str(email_error)}")
+            
+        except Exception as e:
+            db.rollback()
+            failed_entries.append({
+                'booking_request_id': booking_request_id,
+                'reason': f'Error: {str(e)}'
+            })
     
     return {
-        "message": "Apply optimal schedule endpoint - implementation pending",
+        "message": f"Applied {len(applied_entries)} out of {len(entry_ids)} selected entries",
         "trainer_id": trainer_id,
-        "applied_entries": entry_ids,
-        "note": "This feature will be implemented in the next phase"
+        "applied_entries": applied_entries,
+        "failed_entries": failed_entries,
+        "success_count": len(applied_entries),
+        "failure_count": len(failed_entries)
     }
 

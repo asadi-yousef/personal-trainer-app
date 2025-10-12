@@ -8,7 +8,6 @@ import BookingManager from '../../components/Trainer/BookingManager';
 import BookingRequestManager from '../../components/Trainer/BookingRequestManager';
 import AvailabilityManager from '../../components/Trainer/AvailabilityManager';
 import ProgramManager from '../../components/Trainer/ProgramManager';
-import TrainerOptimalScheduler from '../../components/Trainer/TrainerOptimalScheduler';
 import ScheduleAnalytics from '../../components/Trainer/ScheduleAnalytics';
 import ChatInterface from '../../components/Messaging/ChatInterface';
 import { mockTrainerStats, mockTrainerBookings, mockTrainerPrograms } from '../../lib/data';
@@ -266,10 +265,23 @@ function TrainerDashboardContent() {
                 <AvailabilityManager />
               </div>
 
-              {/* Optimal Schedule Finder */}
+              {/* Optimal Schedule Finder - Link to dedicated page */}
               <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="150">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">Optimal Schedule Finder</h2>
-                <TrainerOptimalScheduler />
+                <div className="text-center py-8">
+                  <svg className="w-16 h-16 text-indigo-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Optimal Schedule Generator</h3>
+                  <p className="text-gray-600 mb-4">
+                    AI-powered algorithm to maximize consecutive sessions
+                  </p>
+                  <button 
+                    onClick={() => window.location.href = '/trainer/schedule'}
+                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                  >
+                    Generate Schedule
+                  </button>
+                </div>
               </div>
             </div>
 

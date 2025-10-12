@@ -47,6 +47,7 @@ function TrainerScheduleContent() {
   const [error, setError] = useState<string | null>(null);
   const [scheduleData, setScheduleData] = useState<OptimalScheduleData | null>(null);
   const [selectedEntries, setSelectedEntries] = useState<Set<number>>(new Set());
+  const [applying, setApplying] = useState(false);
   
   const { user } = useAuth();
   const router = useRouter();
@@ -65,6 +66,7 @@ function TrainerScheduleContent() {
     try {
       setLoading(true);
       setError(null);
+      setSelectedEntries(new Set()); // Clear selections when refreshing
 
       // Call the optimal schedule endpoint that uses saved preferences
       const response = await apiClient.get<OptimalScheduleData>('/trainer/me/optimal-schedule');
@@ -95,6 +97,74 @@ function TrainerScheduleContent() {
 
   const deselectAllEntries = () => {
     setSelectedEntries(new Set());
+  };
+
+  const applySelectedEntries = async () => {
+    // Get trainer ID - try multiple possible locations in user object
+    const trainerId = user?.trainer_profile?.id || (user as any)?.trainer_id || (user as any)?.id;
+    
+    if (!trainerId) {
+      alert('Trainer profile not found. Please refresh the page and ensure you are logged in as a trainer.');
+      return;
+    }
+    
+    if (selectedEntries.size === 0) {
+      alert('Please select at least one entry to apply.');
+      return;
+    }
+
+    setApplying(true);
+    setError(null);
+
+    try {
+      const entryIds = Array.from(selectedEntries);
+      
+      const response = await fetch(`http://127.0.0.1:8000/api/trainer/${trainerId}/optimal-schedule/apply`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(entryIds)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to apply schedule');
+      }
+
+      const data = await response.json();
+      
+      // Show detailed success/failure message
+      let message = data.message || 'Schedule applied';
+      
+      if (data.applied_entries && data.applied_entries.length > 0) {
+        message += '\n\nApplied bookings:';
+        data.applied_entries.forEach((entry: any) => {
+          message += `\n• ${entry.client_name} - ${new Date(entry.start_time).toLocaleString()}`;
+        });
+      }
+      
+      if (data.failed_entries && data.failed_entries.length > 0) {
+        message += '\n\nFailed entries:';
+        data.failed_entries.forEach((entry: any) => {
+          message += `\n• Request #${entry.booking_request_id}: ${entry.reason}`;
+        });
+      }
+      
+      alert(message);
+      
+      // Clear selections and refresh schedule
+      setSelectedEntries(new Set());
+      await fetchOptimalSchedule();
+      
+    } catch (err: any) {
+      console.error('Failed to apply optimal schedule:', err);
+      alert(`Error: ${err.message || 'Failed to apply optimal schedule'}`);
+      setError(err.message || 'Failed to apply optimal schedule');
+    } finally {
+      setApplying(false);
+    }
   };
 
   const formatDateTime = (dateString: string) => {
@@ -304,10 +374,11 @@ function TrainerScheduleContent() {
                     </div>
                   </button>
                   <button
-                    disabled={selectedEntries.size === 0 || loading}
+                    onClick={applySelectedEntries}
+                    disabled={selectedEntries.size === 0 || loading || applying}
                     className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Apply Selected ({selectedEntries.size})
+                    {applying ? 'Applying...' : `Apply Selected (${selectedEntries.size})`}
                   </button>
                 </div>
               </div>

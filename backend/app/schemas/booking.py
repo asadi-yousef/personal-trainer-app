@@ -129,7 +129,7 @@ class SmartBookingRequest(BaseModel):
 
 class SmartBookingResponse(BaseModel):
     """Schema for smart booking response with suggestions"""
-    booking_id: int
+    booking_id: Optional[int] = None  # None if just suggesting times, int if booking was created
     suggested_slots: List[dict]  # List of suggested time slots with scores
     best_slot: Optional[dict] = None  # The best recommended slot
     confidence_score: float  # How confident we are in the suggestions
