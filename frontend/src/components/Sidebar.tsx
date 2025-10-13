@@ -36,7 +36,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         { icon: 'clipboard', label: 'Workout Plans', href: '/client/plans' },
         { icon: 'trending-up', label: 'Progress', href: '/client/progress' },
         { icon: 'message-square', label: 'Messages', href: '/client/messages' },
-        { icon: 'user', label: 'My Trainer', href: '/client/trainer' },
+        { icon: 'user', label: 'My Trainer', href: '/client/trainers' },
       ],
     },
     {
