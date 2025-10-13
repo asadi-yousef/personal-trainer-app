@@ -35,9 +35,22 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
     const fetchTrainers = async () => {
       try {
         setLoadingTrainers(true);
-        const trainersData = await trainers.getAll({ limit: 20 });
-        // Ensure we always have an array
-        setAvailableTrainers(Array.isArray(trainersData) ? trainersData : []);
+        console.log('Fetching trainers...');
+        const response = await trainers.getAll({ size: 20 });
+        console.log('Trainers API response:', response);
+        
+        // The API returns an object with trainers array, not direct array
+        if (response && response.trainers && Array.isArray(response.trainers)) {
+          setAvailableTrainers(response.trainers);
+          console.log('Set trainers:', response.trainers.length);
+        } else if (Array.isArray(response)) {
+          // Fallback in case API structure changes
+          setAvailableTrainers(response);
+          console.log('Set trainers (fallback):', response.length);
+        } else {
+          console.warn('Unexpected trainers response format:', response);
+          setAvailableTrainers([]);
+        }
       } catch (error) {
         console.error('Failed to fetch trainers:', error);
         setAvailableTrainers([]);
@@ -219,52 +232,105 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
           Choose Your Preferred Trainer (Optional)
         </h3>
         <p className="text-sm text-gray-600 mb-6">
-          Select a specific trainer to find optimal scheduling times, or leave unselected to let our algorithm find the best trainer for your needs across all available trainers.
+          Select a specific trainer to find optimal scheduling times, or choose "All Trainers" to let our algorithm find the best trainer for your needs across all available trainers.
         </p>
         
         {loadingTrainers ? (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <p className="ml-3 text-sm text-gray-600">Loading trainers...</p>
           </div>
         ) : Array.isArray(availableTrainers) && availableTrainers.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {availableTrainers.map((trainer) => (
-            <div
-              key={trainer.id}
-              className={`p-4 border-2 rounded-lg cursor-pointer transition-smooth ${
-                selectedTrainer === trainer.id
-                  ? 'border-indigo-500 bg-indigo-50'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-              }`}
-              onClick={() => onTrainerSelect(trainer.id)}
-            >
-              <div className="flex items-center space-x-3">
-                <img
-                  src={trainer.user_avatar || trainer.avatar || 'https://i.pravatar.cc/200'}
-                  alt={trainer.user_name || trainer.name}
-                  className="w-12 h-12 rounded-full"
-                />
-                <div className="flex-1">
-                  <h4 className="font-medium text-gray-900">{trainer.user_name || trainer.name}</h4>
-                  <p className="text-sm text-gray-600">{trainer.specialty || trainer.bio || 'Personal Trainer'}</p>
-                  <div className="flex items-center mt-1">
-                    <div className="flex text-yellow-400 text-xs">
-                      {'★'.repeat(Math.floor(trainer.rating || 5))}
+          <div className="space-y-4">
+            {/* Trainer Dropdown */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Trainer ({availableTrainers.length} available)
+              </label>
+              <select
+                value={selectedTrainer || ''}
+                onChange={(e) => onTrainerSelect(e.target.value || null)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="">All Trainers (Let AI choose the best match)</option>
+                {availableTrainers
+                  .sort((a, b) => {
+                    // Sort by rating (highest first), then by name
+                    const ratingA = a.rating || 0;
+                    const ratingB = b.rating || 0;
+                    if (ratingA !== ratingB) {
+                      return ratingB - ratingA;
+                    }
+                    return (a.user_name || a.name || '').localeCompare(b.user_name || b.name || '');
+                  })
+                  .map((trainer) => (
+                    <option key={trainer.id} value={trainer.id}>
+                      {trainer.user_name || trainer.name} - {trainer.specialty || 'Personal Trainer'} 
+                      {trainer.rating ? ` (⭐ ${trainer.rating})` : ''} 
+                      {trainer.price_per_session ? ` - $${trainer.price_per_session}/session` : ''}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            {/* Selected Trainer Info or Default Message */}
+            {selectedTrainer ? (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                <div className="flex items-center space-x-3">
+                  <img
+                    src={availableTrainers.find(t => t.id === selectedTrainer)?.user_avatar || 
+                          availableTrainers.find(t => t.id === selectedTrainer)?.avatar || 
+                          'https://i.pravatar.cc/200'}
+                    alt={availableTrainers.find(t => t.id === selectedTrainer)?.user_name || 
+                          availableTrainers.find(t => t.id === selectedTrainer)?.name}
+                    className="w-12 h-12 rounded-full"
+                  />
+                  <div className="flex-1">
+                    <h4 className="font-medium text-gray-900">
+                      {availableTrainers.find(t => t.id === selectedTrainer)?.user_name || 
+                       availableTrainers.find(t => t.id === selectedTrainer)?.name}
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {availableTrainers.find(t => t.id === selectedTrainer)?.specialty || 
+                       availableTrainers.find(t => t.id === selectedTrainer)?.bio || 
+                       'Personal Trainer'}
+                    </p>
+                    <div className="flex items-center mt-1">
+                      <div className="flex text-yellow-400 text-xs">
+                        {'★'.repeat(Math.floor(availableTrainers.find(t => t.id === selectedTrainer)?.rating || 5))}
+                      </div>
+                      <span className="text-xs text-gray-500 ml-1">
+                        {availableTrainers.find(t => t.id === selectedTrainer)?.rating || 5} 
+                        ({availableTrainers.find(t => t.id === selectedTrainer)?.reviews || 10} reviews)
+                      </span>
+                      {availableTrainers.find(t => t.id === selectedTrainer)?.price_per_session && (
+                        <span className="text-xs text-indigo-600 ml-2">
+                          ${availableTrainers.find(t => t.id === selectedTrainer)?.price_per_session}/session
+                        </span>
+                      )}
                     </div>
-                    <span className="text-xs text-gray-500 ml-1">
-                      {trainer.rating || 5} ({trainer.reviews || 10} reviews)
-                    </span>
+                  </div>
+                  <button
+                    onClick={() => onTrainerSelect(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <i data-feather="x" className="h-5 w-5"></i>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center space-x-3">
+                  <i data-feather="brain" className="h-8 w-8 text-blue-600"></i>
+                  <div>
+                    <h4 className="font-medium text-blue-900">AI-Powered Trainer Selection</h4>
+                    <p className="text-sm text-blue-700">
+                      Our algorithm will analyze all available trainers and find the best match based on your preferences, availability, and optimization criteria.
+                    </p>
                   </div>
                 </div>
               </div>
-              {selectedTrainer === trainer.id && (
-                <div className="mt-3 flex items-center text-indigo-600 text-sm">
-                  <i data-feather="check" className="h-4 w-4 mr-1"></i>
-                  Selected
-                </div>
-              )}
-            </div>
-            ))}
+            )}
           </div>
         ) : (
           <div className="text-center py-8 text-gray-500">
@@ -272,7 +338,41 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
               <i data-feather="users" className="h-12 w-12 text-gray-400 mx-auto"></i>
             </div>
             <h4 className="text-lg font-medium text-gray-900 mb-2">No Trainers Available</h4>
-            <p className="text-gray-600">There are no trainers available at the moment. Please try again later.</p>
+            <p className="text-gray-600 mb-4">There are no trainers available at the moment. Please try again later.</p>
+            <div className="text-xs text-gray-400 bg-gray-100 p-3 rounded">
+              <p>Debug info:</p>
+              <p>Loading: {loadingTrainers ? 'Yes' : 'No'}</p>
+              <p>Available trainers: {availableTrainers.length}</p>
+              <p>Trainers type: {Array.isArray(availableTrainers) ? 'Array' : typeof availableTrainers}</p>
+            </div>
+            <button 
+              onClick={() => {
+                setLoadingTrainers(true);
+                // Retry fetching trainers
+                const fetchTrainers = async () => {
+                  try {
+                    const response = await trainers.getAll({ size: 20 });
+                    console.log('Retry - Trainers API response:', response);
+                    if (response && response.trainers && Array.isArray(response.trainers)) {
+                      setAvailableTrainers(response.trainers);
+                    } else if (Array.isArray(response)) {
+                      setAvailableTrainers(response);
+                    } else {
+                      setAvailableTrainers([]);
+                    }
+                  } catch (error) {
+                    console.error('Retry failed:', error);
+                    setAvailableTrainers([]);
+                  } finally {
+                    setLoadingTrainers(false);
+                  }
+                };
+                fetchTrainers();
+              }}
+              className="mt-2 bg-indigo-600 text-white px-4 py-2 rounded text-sm hover:bg-indigo-700"
+            >
+              Retry Loading Trainers
+            </button>
           </div>
         )}
       </div>
