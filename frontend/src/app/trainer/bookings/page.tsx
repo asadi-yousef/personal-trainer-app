@@ -37,6 +37,8 @@ function TrainerBookingsContent() {
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(getWeekStart(new Date()));
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
 
@@ -72,7 +74,23 @@ function TrainerBookingsContent() {
       
       // Fetch confirmed bookings
       const response = await apiClient.get<Booking[]>(`/bookings?trainer_id=${trainerId}&status=confirmed`);
-      setBookings(response || []);
+      console.log('Fetched bookings:', response);
+      
+      // Deduplicate bookings by client + time combination (keep the one with higher ID/newer)
+      const uniqueBookings = response ? Array.from(
+        new Map(
+          response
+            .sort((a, b) => b.id - a.id) // Sort by ID descending (keep newer ones)
+            .map(booking => {
+              const key = `${booking.client_id}_${booking.confirmed_date}`;
+              return [key, booking];
+            })
+        ).values()
+      ) : [];
+      
+      console.log('Unique bookings after deduplication:', uniqueBookings);
+      console.log('Removed duplicates:', (response?.length || 0) - uniqueBookings.length);
+      setBookings(uniqueBookings);
     } catch (error) {
       console.error('Error fetching bookings:', error);
     } finally {
@@ -143,6 +161,40 @@ function TrainerBookingsContent() {
     return date.toDateString() === today.toDateString();
   };
 
+  const isCurrentWeek = () => {
+    const today = new Date();
+    const todayWeekStart = getWeekStart(today);
+    return currentWeekStart.toDateString() === todayWeekStart.toDateString();
+  };
+
+  const openBookingDetails = (booking: Booking) => {
+    console.log('Opening booking details:', booking);
+    setSelectedBooking(booking);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setTimeout(() => setSelectedBooking(null), 300); // Clear after animation
+  };
+
+  const formatFullDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return {
+      date: date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }),
+      time: date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      })
+    };
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar 
@@ -179,12 +231,14 @@ function TrainerBookingsContent() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
-                <button
-                  onClick={goToToday}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                >
-                  Today
-                </button>
+                {!isCurrentWeek() && (
+                  <button
+                    onClick={goToToday}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    Today
+                  </button>
+                )}
                 <button
                   onClick={goToNextWeek}
                   className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
@@ -233,7 +287,7 @@ function TrainerBookingsContent() {
                         <div
                           key={booking.id}
                           className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 hover:bg-indigo-100 transition-colors cursor-pointer"
-                          onClick={() => router.push(`/trainer/bookings/${booking.id}`)}
+                          onClick={() => openBookingDetails(booking)}
                         >
                           <div className="flex items-start space-x-2">
                             <img
@@ -297,6 +351,121 @@ function TrainerBookingsContent() {
                   {weekDays.reduce((sum, day) => sum + day.bookings.length, 0)}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Booking Details Modal */}
+          {isModalOpen && selectedBooking && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={closeModal}>
+              {/* Background overlay */}
+              <div className="fixed inset-0 bg-gray-900 bg-opacity-50"></div>
+
+              {/* Modal panel */}
+              <div 
+                className="relative bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                  {/* Header */}
+                  <div className="bg-indigo-600 px-6 py-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-white">
+                        Booking Details
+                      </h3>
+                      <button
+                        onClick={closeModal}
+                        className="text-white hover:text-gray-200 transition-colors"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="bg-white px-6 py-6">
+                    {/* Client Info */}
+                    <div className="flex items-center space-x-4 mb-6">
+                      <img
+                        src={getClientAvatar(selectedBooking)}
+                        alt={getClientName(selectedBooking)}
+                        className="w-16 h-16 rounded-full border-2 border-indigo-200"
+                      />
+                      <div>
+                        <h4 className="text-xl font-semibold text-gray-900">
+                          {getClientName(selectedBooking)}
+                        </h4>
+                        <p className="text-sm text-gray-600">Client</p>
+                      </div>
+                    </div>
+
+                    {/* Booking Details */}
+                    <div className="space-y-4">
+                      <div className="border-t border-gray-200 pt-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-gray-600">Session Type</p>
+                            <p className="text-base font-medium text-gray-900 mt-1">
+                              {selectedBooking.session_type}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Duration</p>
+                            <p className="text-base font-medium text-gray-900 mt-1">
+                              {selectedBooking.duration_minutes} minutes
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-200 pt-4">
+                        <p className="text-sm text-gray-600">Date & Time</p>
+                        <p className="text-base font-medium text-gray-900 mt-1">
+                          {formatFullDateTime(selectedBooking.confirmed_date).date}
+                        </p>
+                        <p className="text-lg font-semibold text-indigo-600 mt-1">
+                          {formatFullDateTime(selectedBooking.confirmed_date).time}
+                        </p>
+                      </div>
+
+                      <div className="border-t border-gray-200 pt-4">
+                        <p className="text-sm text-gray-600">Location</p>
+                        <p className="text-base font-medium text-gray-900 mt-1">
+                          {selectedBooking.location || 'Not specified'}
+                        </p>
+                      </div>
+
+                      <div className="border-t border-gray-200 pt-4">
+                        <p className="text-sm text-gray-600">Status</p>
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 mt-1">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          Confirmed
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3">
+                    <button
+                      onClick={closeModal}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Close
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Add contact client functionality here
+                        closeModal();
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                      Contact Client
+                    </button>
+                  </div>
+                </div>
             </div>
           )}
         </div>
