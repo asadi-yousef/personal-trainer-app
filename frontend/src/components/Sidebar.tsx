@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../contexts/AuthContext';
-import { useFeatherIcons } from '../utils/featherIcons';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -18,8 +17,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
 
-  // Temporarily disable feather icons to prevent DOM conflicts
-  // useFeatherIcons([collapsed, pathname]);
 
   // Get current route to determine which sidebar to show
   const isClientRoute = pathname.startsWith('/client');
@@ -56,6 +53,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         { icon: 'clock', label: 'Availability', href: '/trainer/availability' },
         { icon: 'clipboard', label: 'Programs', href: '/trainer/programs' },
         { icon: 'users', label: 'Clients', href: '/trainer/clients' },
+        { icon: 'message-square', label: 'Messages', href: '/trainer/messages' },
         { icon: 'trending-up', label: 'Analytics', href: '/trainer/analytics' },
       ],
     },

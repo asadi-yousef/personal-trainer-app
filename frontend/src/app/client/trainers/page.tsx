@@ -95,8 +95,8 @@ function ClientTrainersContent() {
   };
 
   const handleMessage = (trainerId: number) => {
-    // Placeholder for future messaging system
-    alert('Messaging coming soon!');
+    // Navigate to individual chat with this trainer
+    window.location.href = `/client/messages/${trainerId}`;
   };
 
   return (

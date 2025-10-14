@@ -68,6 +68,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     initializeAuth();
   }, []);
 
+
   // Login function
   const login = async (email: string, password: string) => {
     try {

@@ -7,8 +7,8 @@ let isReplacing = false;
 let replaceTimeout = null;
 const DEBOUNCE_MS = 150;
 
-// Override the global feather.replace to add safety checks
-if (typeof window !== 'undefined') {
+// DISABLED: Override the global feather.replace to add safety checks
+// if (typeof window !== 'undefined') {
   // Store original replace method
   let originalReplace = null;
 
@@ -59,6 +59,22 @@ if (typeof window !== 'undefined') {
     }, DEBOUNCE_MS);
   };
 
+  // Manual refresh function for when icons disappear
+  window.refreshFeatherIcons = () => {
+    if (featherLoaded && featherInstance) {
+      try {
+        // Force refresh all feather icons
+        const featherElements = document.querySelectorAll('[data-feather]');
+        featherElements.forEach(el => {
+          el.removeAttribute('data-feather-processed');
+        });
+        featherInstance.replace();
+      } catch (error) {
+        console.warn('Error refreshing feather icons:', error);
+      }
+    }
+  };
+
   // Override window.feather if available
   const checkAndOverride = async () => {
     try {
@@ -75,7 +91,7 @@ if (typeof window !== 'undefined') {
 
   // Try to override after a short delay
   setTimeout(checkAndOverride, 100);
-}
+// }
 
 // Export for use in components
 export const initFeatherFix = () => {

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useFeatherIcons } from '@/utils/featherIcons';
 
 interface Trainer {
   id: number;
@@ -107,7 +106,6 @@ export default function TimeBasedBooking() {
     }
   }, [mounted]);
 
-  useFeatherIcons([mounted, availableSlots, bookingSuccess, priceCalculation]);
 
   const fetchAvailableSlots = async (date: string, duration: number) => {
     if (!selectedTrainer || !date) return;

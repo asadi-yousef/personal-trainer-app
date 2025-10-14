@@ -49,9 +49,11 @@ export default function ChatInterface() {
   // Fetch conversations
   useEffect(() => {
     const fetchConversations = async () => {
+      if (!user?.id) return; // Don't fetch if no user
+      
       try {
         setLoading(true);
-        const conversationsData = await messages.getConversations();
+        const conversationsData = await messages.getUserConversations(user.id);
         setConversations(conversationsData || []);
       } catch (error) {
         console.error('Failed to fetch conversations:', error);
@@ -60,7 +62,7 @@ export default function ChatInterface() {
         setLoading(false);
       }
     };
-    
+
     fetchConversations();
   }, [user]);
 
@@ -161,7 +163,7 @@ export default function ChatInterface() {
           {conversations.length === 0 ? (
             <div className="p-4 text-center text-gray-500">
               <div className="mb-2">
-                <i data-feather="message-circle" className="h-8 w-8 text-gray-400 mx-auto"></i>
+                <span>💬</span>
               </div>
               <p className="text-sm">No conversations yet</p>
             </div>
@@ -216,7 +218,6 @@ export default function ChatInterface() {
                   <h4 className="font-medium text-gray-900">
                     {getOtherParticipant(selectedConversation)?.full_name}
                   </h4>
-                  <p className="text-sm text-gray-500">Online</p>
                 </div>
               </div>
             </div>
@@ -226,7 +227,7 @@ export default function ChatInterface() {
               {messages.length === 0 ? (
                 <div className="text-center text-gray-500 py-8">
                   <div className="mb-2">
-                    <i data-feather="message-circle" className="h-8 w-8 text-gray-400 mx-auto"></i>
+                    <span>💬</span>
                   </div>
                   <p className="text-sm">No messages yet. Start the conversation!</p>
                 </div>
@@ -263,7 +264,13 @@ export default function ChatInterface() {
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSendMessage();
+                    }
+                  }}
                   placeholder="Type a message..."
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   disabled={sendingMessage}
@@ -276,7 +283,7 @@ export default function ChatInterface() {
                   {sendingMessage ? (
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   ) : (
-                    <i data-feather="send" className="h-4 w-4"></i>
+                    "Send"
                   )}
                 </button>
               </div>
@@ -286,7 +293,7 @@ export default function ChatInterface() {
           <div className="flex-1 flex items-center justify-center text-gray-500">
             <div className="text-center">
               <div className="mb-4">
-                <i data-feather="message-circle" className="h-12 w-12 text-gray-400 mx-auto"></i>
+                <span>💬</span>
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">Select a conversation</h3>
               <p className="text-sm">Choose a conversation from the list to start messaging</p>
@@ -297,6 +304,8 @@ export default function ChatInterface() {
     </div>
   );
 }
+
+
 
 
 

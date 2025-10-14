@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useFeatherIcons } from '@/utils/featherIcons';
 import { useDOMErrorHandler } from '@/utils/domErrorHandler';
 import { apiClient } from '@/lib/api';
 
@@ -108,8 +107,6 @@ export default function CompleteRegistrationPage() {
     }
   }, [mounted, user, token, domStable]);
 
-  // Use feather icons with more frequent updates for dynamic content
-  useFeatherIcons([mounted, domStable, currentStep, profileStatus, progress, formData.training_types, formData.price_per_hour, formData.gym_name, formData.bio]);
 
   const fetchProfileStatus = async () => {
     try {

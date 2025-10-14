@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { trainers, bookings } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { useFeatherIcons } from '../../utils/featherIcons';
 
 interface OptimalScheduleFinderProps {
   selectedTrainer: string | null;
@@ -62,8 +61,6 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
     fetchTrainers();
   }, []);
 
-  // Use safe feather icon replacement
-  useFeatherIcons([]);
 
   const sessionTypes = [
     'Strength Training',

@@ -13,7 +13,6 @@ import SessionStatus from '../../components/Client/SessionStatus';
 import { mockStats, mockSessions, mockProgram, mockMessages } from '../../lib/data';
 import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
 import { apiClient, sessions, programs, messages, analytics, goals } from '../../lib/api';
-import { useFeatherIcons } from '../../utils/featherIcons';
 
 /**
  * Client dashboard page with sidebar and main content
@@ -173,8 +172,6 @@ function ClientDashboardContent() {
     fetchDashboardData();
   }, [user]);
 
-  // Temporarily disable feather icons to prevent DOM conflicts
-  // useFeatherIcons([dashboardData, sidebarCollapsed, mounted]);
 
   useEffect(() => {
     setMounted(true);

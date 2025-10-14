@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react';
 import { Session } from '../../lib/data';
-import { useFeatherIcons } from '../../utils/featherIcons';
 
 interface SessionItemProps {
   session: Session;
@@ -12,8 +11,6 @@ interface SessionItemProps {
  * Session item component displaying upcoming session details
  */
 export default function SessionItem({ session }: SessionItemProps) {
-  // Temporarily disable feather icons to prevent DOM conflicts
-  // useFeatherIcons([session]);
 
   const getStatusColor = (status: string) => {
     const colors = {

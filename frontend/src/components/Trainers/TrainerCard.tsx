@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { Trainer } from '../../lib/data';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { useFeatherIcons } from '../../utils/featherIcons';
 
 interface TrainerCardProps {
   trainer: Trainer;
@@ -76,8 +75,6 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
   // Map API data to component format
   const mappedTrainer = mapApiTrainerToComponent(trainer);
   
-  // Use safe feather icon replacement
-  useFeatherIcons([mappedTrainer]);
 
   const getSpecialtyColor = (specialty: string) => {
     const colors = {

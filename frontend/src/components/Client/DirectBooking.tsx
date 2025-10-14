@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { timeSlots, bookingRequests } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { useFeatherIcons } from '../../utils/featherIcons';
 
 interface TimeSlot {
   id: number;
@@ -46,8 +45,6 @@ export default function DirectBooking() {
     }
   }, []);
 
-  // Temporarily disable feather icons to prevent DOM conflicts
-  // useFeatherIcons([mounted, availableSlots, bookingSuccess]);
 
   const fetchAvailableSlots = async (date: string) => {
     if (!selectedTrainer || !date) return;

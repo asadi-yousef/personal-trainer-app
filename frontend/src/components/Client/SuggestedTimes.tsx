@@ -42,7 +42,7 @@ export default function SuggestedTimes() {
               trainer_rating: slot.trainer_rating,
               trainer_price: slot.trainer_price,
               sessionType: slot.session_type || 'Training Session',
-              confidence: Math.round((slot.score || 0.85) * 10) || 85, // Convert score to percentage
+              confidence: Math.round(slot.score || 85), // Score is already a percentage
               reasons: [
                 'Greedy algorithm optimization',
                 'Matches your preferences',
@@ -51,7 +51,7 @@ export default function SuggestedTimes() {
                 slot.trainer_specialty ? `Specialty: ${slot.trainer_specialty}` : 'Best trainer match'
               ],
               location: slot.location || 'Gym Studio',
-              score: slot.score || 0.85
+              score: slot.score || 85
             }));
             
             setSuggestions(realSuggestions);
@@ -123,14 +123,14 @@ export default function SuggestedTimes() {
   }, []);
 
   const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 90) return 'text-green-600 bg-green-100';
-    if (confidence >= 80) return 'text-yellow-600 bg-yellow-100';
+    if (confidence >= 85) return 'text-green-600 bg-green-100';
+    if (confidence >= 70) return 'text-yellow-600 bg-yellow-100';
     return 'text-red-600 bg-red-100';
   };
 
   const getConfidenceLabel = (confidence: number) => {
-    if (confidence >= 90) return 'Excellent';
-    if (confidence >= 80) return 'Good';
+    if (confidence >= 85) return 'Excellent';
+    if (confidence >= 70) return 'Good';
     return 'Fair';
   };
 
@@ -204,7 +204,7 @@ export default function SuggestedTimes() {
           </div>
           <div className="bg-white rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-purple-600">
-              {suggestions.length > 0 ? Math.round(suggestions.reduce((acc, s) => acc + (s.score || 0), 0) / suggestions.length * 10) : 0}
+              {suggestions.length > 0 ? Math.round(suggestions.reduce((acc, s) => acc + (s.score || 0), 0) / suggestions.length) : 0}
             </div>
             <div className="text-sm text-gray-600">Avg Algorithm Score</div>
           </div>

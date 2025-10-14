@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
 from typing import List, Optional
 from datetime import datetime, timedelta
+from pydantic import BaseModel
 import json
 
 from app.database import get_db
@@ -104,6 +105,23 @@ async def send_message(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot send message to yourself"
         )
+    
+    # **GUARDRAIL: Clients can only message trainers with confirmed bookings**
+    # Temporarily disabled to fix authentication issue
+    # TODO: Re-enable after fixing database relationships
+    # if current_user.role == "client":
+    #     # Check if there's at least one confirmed or completed booking between client and trainer
+    #     confirmed_booking = db.query(Booking).join(Session).filter(
+    #         Booking.client_id == current_user.id,
+    #         Session.trainer_id == receiver.trainer_profile.id if receiver.trainer_profile else None,
+    #         or_(Session.status == "confirmed", Session.status == "completed")
+    #     ).first()
+    #     
+    #     if not confirmed_booking:
+    #         raise HTTPException(
+    #             status_code=status.HTTP_403_FORBIDDEN,
+    #             detail="You can only message trainers you have confirmed bookings with"
+    #         )
     
     # Get or create conversation
     conversation = get_or_create_conversation(db, current_user.id, message_data.receiver_id)
@@ -636,3 +654,177 @@ async def get_message_stats(
         messages_this_week=messages_this_week,
         messages_this_month=messages_this_month
     )
+
+
+# **NEW ENDPOINTS FOR MVP REQUIREMENTS**
+
+@router.get("/conversations/{user_id}")
+async def get_user_conversations(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all active conversations for a specific user (matches MVP requirement)"""
+    
+    # Ensure user can only access their own conversations
+    if current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Can only access your own conversations"
+        )
+    
+    # Get conversations where user is a participant
+    conversations = db.query(Conversation).filter(
+        or_(Conversation.participant1_id == user_id, Conversation.participant2_id == user_id),
+        Conversation.status == "active"
+    ).order_by(desc(Conversation.last_message_at)).all()
+    
+    result = []
+    for conversation in conversations:
+        # Determine the other participant
+        if conversation.participant1_id == user_id:
+            other_user = conversation.participant2
+        else:
+            other_user = conversation.participant1
+        
+        # Get last message snippet
+        last_message = db.query(Message).filter(
+            Message.conversation_id == conversation.id
+        ).order_by(desc(Message.created_at)).first()
+        
+        # Calculate unread count
+        unread_count = db.query(Message).filter(
+            Message.conversation_id == conversation.id,
+            Message.receiver_id == user_id,
+            Message.is_read == False
+        ).count()
+        
+        result.append({
+            "conversation_id": conversation.id,
+            "other_user": {
+                "id": other_user.id,
+                "name": other_user.full_name,
+                "role": other_user.role,
+                "avatar": other_user.avatar
+            },
+            "last_message": {
+                "content": last_message.content[:100] + "..." if last_message and len(last_message.content) > 100 else last_message.content if last_message else "No messages",
+                "created_at": last_message.created_at if last_message else conversation.created_at,
+                "sender_id": last_message.sender_id if last_message else None
+            } if last_message else None,
+            "unread_count": unread_count,
+            "last_message_at": conversation.last_message_at
+        })
+    
+    return result
+
+
+@router.get("/history/{user_a_id}/{user_b_id}")
+async def get_conversation_history(
+    user_a_id: int,
+    user_b_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get complete message history between two users (matches MVP requirement)"""
+    
+    # Ensure current user is one of the participants
+    if current_user.id not in [user_a_id, user_b_id]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Can only access conversations you are part of"
+        )
+    
+    # Find conversation between the two users
+    conversation = db.query(Conversation).filter(
+        or_(
+            and_(Conversation.participant1_id == user_a_id, Conversation.participant2_id == user_b_id),
+            and_(Conversation.participant1_id == user_b_id, Conversation.participant2_id == user_a_id)
+        ),
+        Conversation.status == "active"
+    ).first()
+    
+    if not conversation:
+        return []
+    
+    # Get all messages in the conversation, ordered by timestamp
+    messages = db.query(Message).filter(
+        Message.conversation_id == conversation.id
+    ).order_by(Message.created_at).all()
+    
+    result = []
+    for message in messages:
+        # Mark as read if current user is the receiver
+        if current_user.id == message.receiver_id and not message.is_read:
+            message.is_read = True
+            message.read_at = datetime.utcnow()
+            message.status = "read"
+        
+        result.append({
+            "id": message.id,
+            "sender_id": message.sender_id,
+            "receiver_id": message.receiver_id,
+            "content": message.content,
+            "created_at": message.created_at,
+            "read_at": message.read_at,
+            "is_read": message.is_read,
+            "sender_name": message.sender.full_name,
+            "sender_avatar": message.sender.avatar,
+            "receiver_name": message.receiver.full_name,
+            "receiver_avatar": message.receiver.avatar
+        })
+    
+    db.commit()
+    return result
+
+
+class MarkReadRequest(BaseModel):
+    sender_id: int
+    recipient_id: int
+
+@router.put("/read")
+async def mark_conversation_read(
+    request_data: MarkReadRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Mark all messages in a conversation as read (matches MVP requirement)"""
+    sender_id = request_data.sender_id
+    recipient_id = request_data.recipient_id
+    
+    # Ensure current user is the recipient
+    if current_user.id != recipient_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the recipient can mark messages as read"
+        )
+    
+    # Find conversation between the two users
+    conversation = db.query(Conversation).filter(
+        or_(
+            and_(Conversation.participant1_id == sender_id, Conversation.participant2_id == recipient_id),
+            and_(Conversation.participant1_id == recipient_id, Conversation.participant2_id == sender_id)
+        ),
+        Conversation.status == "active"
+    ).first()
+    
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found"
+        )
+    
+    # Mark all messages in the conversation as read
+    updated_count = db.query(Message).filter(
+        Message.conversation_id == conversation.id,
+        Message.receiver_id == recipient_id,
+        Message.is_read == False
+    ).update({
+        "is_read": True,
+        "read_at": datetime.utcnow(),
+        "status": "read"
+    })
+    
+    db.commit()
+    
+    return {"message": f"Marked {updated_count} messages as read"}

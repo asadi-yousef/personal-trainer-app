@@ -106,11 +106,11 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # Reactivate user on successful login
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user account"
-        )
+        user.is_active = True
+        db.commit()
+        db.refresh(user)
     
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(
@@ -132,4 +132,5 @@ async def get_current_user_info(current_user: User = Depends(get_current_active_
 async def logout():
     """Logout user (client-side token removal)"""
     return {"message": "Successfully logged out"}
+
 

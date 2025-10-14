@@ -6,7 +6,6 @@ import TrainerCard from '../../components/Trainers/TrainerCard';
 import Filters from '../../components/Trainers/Filters';
 import Pagination from '../../components/Trainers/Pagination';
 import { trainers } from '../../lib/api';
-import { useFeatherIcons } from '../../utils/featherIcons';
 
 /**
  * Trainers page with filtering and pagination
@@ -58,7 +57,6 @@ export default function TrainersPage() {
   }, [currentPage, selectedSpecialty, selectedAvailability]);
 
   // Use safe feather icon replacement
-  useFeatherIcons([trainersData, loading, error]);
 
   useEffect(() => {
     // Initialize AOS animations

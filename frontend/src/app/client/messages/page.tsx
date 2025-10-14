@@ -25,9 +25,9 @@ interface Conversation {
 }
 
 /**
- * Trainer Messages Page - Lists all conversations with clients
+ * Client Messages Page - Lists all conversations with trainers
  */
-export default function TrainerMessagesPage() {
+export default function ClientMessagesPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -45,20 +45,7 @@ export default function TrainerMessagesPage() {
         setLoading(true);
         setError(null);
         const conversationsData = await messages.getUserConversations(user.id);
-        // Sort by most recent activity (unread messages first, then by last message time)
-        const sortedConversations = (conversationsData || []).sort((a, b) => {
-          // Prioritize conversations with unread messages
-          if (a.unread_count > 0 && b.unread_count === 0) return -1;
-          if (a.unread_count === 0 && b.unread_count > 0) return 1;
-          
-          // Then sort by last message time
-          if (!a.last_message_at && !b.last_message_at) return 0;
-          if (!a.last_message_at) return 1;
-          if (!b.last_message_at) return -1;
-          
-          return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
-        });
-        setConversations(sortedConversations);
+        setConversations(conversationsData || []);
       } catch (err) {
         console.error('Failed to fetch conversations:', err);
         setError('Failed to load conversations');
@@ -130,11 +117,9 @@ export default function TrainerMessagesPage() {
     }
   };
 
-  const handleConversationClick = (clientId: number) => {
-    router.push(`/trainer/messages/${clientId}`);
+  const handleConversationClick = (trainerId: number) => {
+    router.push(`/client/messages/${trainerId}`);
   };
-
-  const totalUnread = conversations.reduce((sum, conv) => sum + conv.unread_count, 0);
 
   if (loading) {
     return (
@@ -177,22 +162,15 @@ export default function TrainerMessagesPage() {
                   Messages 💬
                 </h1>
                 <p className="text-gray-600">
-                  Communicate with your clients and manage training discussions.
+                  Chat with your trainers and manage your conversations.
                 </p>
               </div>
-              <div className="flex items-center space-x-4 mt-4 lg:mt-0">
-                {totalUnread > 0 && (
-                  <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                    {totalUnread} unread
-                  </div>
-                )}
-                <button
-                  onClick={() => router.push('/trainer/schedule')}
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 focus-ring transition-smooth"
-                >
-                  Manage Schedule
-                </button>
-              </div>
+              <button
+                onClick={() => router.push('/client/schedule')}
+                className="mt-4 lg:mt-0 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 focus-ring transition-smooth"
+              >
+                Book New Session
+              </button>
             </div>
           </div>
 
@@ -214,18 +192,10 @@ export default function TrainerMessagesPage() {
           <div className="bg-white rounded-xl shadow-lg" data-aos="fade-up" data-aos-delay="100">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-gray-900">Client Conversations</h2>
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2 text-sm text-gray-500">
-                    <i data-feather="users" className="h-4 w-4"></i>
-                    <span>{conversations.length} active conversations</span>
-                  </div>
-                  {totalUnread > 0 && (
-                    <div className="flex items-center space-x-2 text-sm text-red-600">
-                      <i data-feather="bell" className="h-4 w-4"></i>
-                      <span>{totalUnread} unread messages</span>
-                    </div>
-                  )}
+                <h2 className="text-xl font-semibold text-gray-900">Your Conversations</h2>
+                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                  <i data-feather="users" className="h-4 w-4"></i>
+                  <span>{conversations.length} active conversations</span>
                 </div>
               </div>
             </div>
@@ -238,13 +208,13 @@ export default function TrainerMessagesPage() {
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No conversations yet</h3>
                   <p className="text-gray-600 mb-4">
-                    When clients book sessions with you, you'll be able to communicate with them here.
+                    You can only message trainers you have confirmed bookings with.
                   </p>
                   <button
-                    onClick={() => router.push('/trainer/schedule')}
+                    onClick={() => router.push('/client/schedule')}
                     className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 focus-ring transition-smooth"
                   >
-                    Set Up Your Schedule
+                    Book Your First Session
                   </button>
                 </div>
               ) : (
@@ -252,9 +222,7 @@ export default function TrainerMessagesPage() {
                   <div
                     key={conversation.conversation_id}
                     onClick={() => handleConversationClick(conversation.other_user.id)}
-                    className={`p-6 hover:bg-gray-50 cursor-pointer transition-colors ${
-                      conversation.unread_count > 0 ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                    }`}
+                    className="p-6 hover:bg-gray-50 cursor-pointer transition-colors"
                     data-aos="fade-up"
                     data-aos-delay={index * 100}
                   >
@@ -276,9 +244,7 @@ export default function TrainerMessagesPage() {
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <h3 className={`text-lg font-medium truncate ${
-                            conversation.unread_count > 0 ? 'text-gray-900' : 'text-gray-700'
-                          }`}>
+                          <h3 className="text-lg font-medium text-gray-900 truncate">
                             {conversation.other_user.name}
                           </h3>
                           <div className="flex items-center space-x-2">
@@ -287,9 +253,9 @@ export default function TrainerMessagesPage() {
                                 {formatTime(conversation.last_message_at)}
                               </span>
                             )}
-                            {conversation.other_user.role === 'client' && (
-                              <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
-                                Client
+                            {conversation.other_user.role === 'trainer' && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                                Trainer
                               </span>
                             )}
                           </div>
@@ -318,19 +284,17 @@ export default function TrainerMessagesPage() {
             </div>
           </div>
 
-          {/* Trainer Tips */}
+          {/* Info Card */}
           {conversations.length > 0 && (
-            <div className="mt-8 bg-green-50 border border-green-200 rounded-lg p-6" data-aos="fade-up" data-aos-delay="200">
+            <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6" data-aos="fade-up" data-aos-delay="200">
               <div className="flex items-start space-x-3">
-                <i data-feather="lightbulb" className="h-5 w-5 text-green-600 mt-0.5"></i>
+                <i data-feather="info" className="h-5 w-5 text-blue-600 mt-0.5"></i>
                 <div>
-                  <h3 className="text-sm font-medium text-green-900">Trainer Tips</h3>
-                  <ul className="text-sm text-green-700 mt-2 space-y-1">
-                    <li>• Respond to client messages within 24 hours for better relationships</li>
-                    <li>• Use messages to provide workout tips and motivation</li>
-                    <li>• Confirm session details and answer any questions</li>
-                    <li>• Share progress updates and celebrate achievements</li>
-                  </ul>
+                  <h3 className="text-sm font-medium text-blue-900">Messaging Guidelines</h3>
+                  <p className="text-sm text-blue-700 mt-1">
+                    You can only message trainers you have confirmed or completed sessions with. 
+                    This ensures meaningful conversations about your fitness journey.
+                  </p>
                 </div>
               </div>
             </div>

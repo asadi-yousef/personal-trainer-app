@@ -12,7 +12,6 @@ export interface User {
   full_name: string;
   role: 'client' | 'trainer' | 'admin';
   avatar?: string;
-  is_active: boolean;
   is_verified: boolean;
   created_at: string;
 }
@@ -192,6 +191,7 @@ class ApiClient {
   async getCurrentUser(): Promise<User> {
     return this.request<User>('/auth/me');
   }
+
 
   // Trainer methods
   async getTrainers(params?: {
@@ -557,6 +557,22 @@ class ApiClient {
     return this.request(`/messages/conversations/${conversationId}/messages`);
   }
 
+  // **NEW MVP METHODS**
+  async getUserConversations(userId: number): Promise<any[]> {
+    return this.request(`/messages/conversations/${userId}`);
+  }
+
+  async getConversationHistory(userAId: number, userBId: number): Promise<any[]> {
+    return this.request(`/messages/history/${userAId}/${userBId}`);
+  }
+
+  async markConversationRead(senderId: number, recipientId: number): Promise<any> {
+    return this.request('/messages/read', {
+      method: 'PUT',
+      body: JSON.stringify({ sender_id: senderId, recipient_id: recipientId }),
+    });
+  }
+
   // Booking Management Methods
   async createBookingRequest(data: any): Promise<any> {
     return this.request('/booking-management/booking-request', {
@@ -877,6 +893,10 @@ export const messages = {
   delete: (id: number) => apiClient.deleteMessage(id),
   getConversations: () => apiClient.getConversations(),
   getConversationMessages: (conversationId: number) => apiClient.getConversationMessages(conversationId),
+  // **NEW MVP METHODS**
+  getUserConversations: (userId: number) => apiClient.getUserConversations(userId),
+  getConversationHistory: (userAId: number, userBId: number) => apiClient.getConversationHistory(userAId, userBId),
+  markConversationRead: (senderId: number, recipientId: number) => apiClient.markConversationRead(senderId, recipientId),
 };
 
 export const analytics = {

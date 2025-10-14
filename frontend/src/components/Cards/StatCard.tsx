@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react';
 import { StatCard as StatCardType } from '../../lib/data';
-import { useFeatherIcons } from '../../utils/featherIcons';
 
 interface StatCardProps {
   stat: StatCardType;
@@ -12,8 +11,6 @@ interface StatCardProps {
  * Stat card component displaying key metrics
  */
 export default function StatCard({ stat }: StatCardProps) {
-  // Temporarily disable feather icons to prevent DOM conflicts
-  // useFeatherIcons([stat]);
 
   const getColorClasses = (color: string) => {
     const colors = {
