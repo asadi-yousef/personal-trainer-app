@@ -32,6 +32,15 @@ export default function TimeSlotManager() {
   const [timeSlotsData, setTimeSlotsData] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
   const [showBulkCreate, setShowBulkCreate] = useState(false);
   
   // Bulk create form state
@@ -173,6 +182,7 @@ export default function TimeSlotManager() {
                 type="date"
                 value={bulkData.start_date}
                 onChange={(e) => setBulkData({ ...bulkData, start_date: e.target.value })}
+                min={getTodayDate()}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -185,6 +195,7 @@ export default function TimeSlotManager() {
                 type="date"
                 value={bulkData.end_date}
                 onChange={(e) => setBulkData({ ...bulkData, end_date: e.target.value })}
+                min={bulkData.start_date || getTodayDate()}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>

@@ -133,12 +133,14 @@ async def get_available_slots(
     start_datetime = datetime.combine(requested_date, datetime.min.time())
     end_datetime = datetime.combine(requested_date, datetime.max.time())
     
+    from sqlalchemy import or_
     available_slots = db.query(TimeSlot).filter(
         TimeSlot.trainer_id == trainer_id,
         TimeSlot.start_time >= start_datetime,
         TimeSlot.start_time < end_datetime,
         TimeSlot.is_available == True,
         TimeSlot.is_booked == False,
+        or_(TimeSlot.locked_until.is_(None), TimeSlot.locked_until < datetime.now()),
         TimeSlot.duration_minutes == duration_minutes
     ).order_by(TimeSlot.start_time).all()
     

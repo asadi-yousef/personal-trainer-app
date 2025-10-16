@@ -20,6 +20,8 @@ interface Booking {
   can_cancel: boolean;
   can_reschedule: boolean;
   has_payment?: boolean;
+  preferred_start_date?: string;
+  preferred_end_date?: string;
 }
 
 export default function MyBookings() {
@@ -30,6 +32,17 @@ export default function MyBookings() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  
+  // Helper function to get today's datetime in YYYY-MM-DDTHH:MM format
+  const getTodayDateTime = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
 
   // Cancellation form state
   const [cancellationReason, setCancellationReason] = useState('');
@@ -50,8 +63,64 @@ export default function MyBookings() {
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      const response = await bookingManagement.getMyBookings();
-      setBookings(response.bookings || []);
+      
+      // Fetch both confirmed bookings and pending booking requests
+      const [bookingsResponse, requestsResponse] = await Promise.allSettled([
+        bookingManagement.getMyBookings(),
+        bookingManagement.getMyBookingRequests()
+      ]);
+      
+      let allBookings: Booking[] = [];
+      
+      // Add confirmed bookings
+      if (bookingsResponse.status === 'fulfilled' && bookingsResponse.value?.bookings) {
+        allBookings = [...bookingsResponse.value.bookings];
+      }
+      
+      // Add pending booking requests
+      if (requestsResponse.status === 'fulfilled' && requestsResponse.value) {
+        const pendingRequests = Array.isArray((requestsResponse.value as any)?.booking_requests)
+          ? (requestsResponse.value as any).booking_requests
+          : (Array.isArray(requestsResponse.value) ? (requestsResponse.value as any) : (requestsResponse.value as any)?.requests || (requestsResponse.value as any)?.data || []);
+
+        // Helpers for future-only filter (local midnight safe)
+        const getTodayMidnight = () => {
+          const now = new Date();
+          return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        };
+        const todayMidnight = getTodayMidnight().getTime();
+        const isFuture = (req: any) => {
+          const primary = req.preferred_start_date || req.start_time;
+          const fallback = req.expires_at;
+          const pick = primary || fallback;
+          if (!pick) return true; // keep undated
+          const d = new Date(pick);
+          if (isNaN(d.getTime())) return true; // keep unparsable
+          const reqMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+          return reqMidnight >= todayMidnight;
+        };
+
+        const formattedRequests = pendingRequests
+          .filter((request: any) => String(request.status).toLowerCase() === 'pending' && isFuture(request))
+          .map((request: any) => ({
+            id: request.id,
+            other_party_name: request.trainer?.user?.full_name || request.trainer_name || 'Trainer',
+            session_type: request.session_type || 'Training Session',
+            duration_minutes: request.duration_minutes || 60,
+            location: request.location || 'Gym',
+            status: 'pending',
+            special_requests: request.special_requests || '',
+            created_at: request.created_at || new Date().toISOString(),
+            can_cancel: true,
+            can_reschedule: false,
+            preferred_start_date: request.preferred_start_date,
+            preferred_end_date: request.preferred_end_date
+          }));
+          
+        allBookings = [...allBookings, ...formattedRequests];
+      }
+      
+      setBookings(allBookings);
     } catch (err: any) {
       console.error('Failed to fetch bookings:', err);
       setError('Failed to load bookings');
@@ -70,10 +139,17 @@ export default function MyBookings() {
     setError(null);
 
     try {
-      await bookingManagement.cancelBooking({
-        booking_id: selectedBooking.id,
-        cancellation_reason: cancellationReason
-      });
+      // Handle cancellation based on booking status
+      if (selectedBooking.status === 'pending') {
+        // Cancel booking request
+        await bookingManagement.cancelBookingRequest(selectedBooking.id);
+      } else {
+        // Cancel confirmed booking
+        await bookingManagement.cancelBooking({
+          booking_id: selectedBooking.id,
+          cancellation_reason: cancellationReason
+        });
+      }
 
       // Update the booking status in the list
       setBookings(prev => prev.map(booking => 
@@ -283,6 +359,15 @@ export default function MyBookings() {
                             <span className="font-medium">Time:</span> {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
                           </p>
                         </>
+                      ) : booking.preferred_start_date ? (
+                        <>
+                          <p className="text-sm text-gray-600">
+                            <span className="font-medium">Requested Date:</span> {formatDate(booking.preferred_start_date)}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            <span className="font-medium">Status:</span> Awaiting trainer confirmation
+                          </p>
+                        </>
                       ) : (
                         <p className="text-sm text-gray-600">
                           <span className="font-medium">Status:</span> Awaiting confirmation
@@ -386,6 +471,7 @@ export default function MyBookings() {
                           type="datetime-local"
                           value={newStartTime}
                           onChange={(e) => setNewStartTime(e.target.value)}
+                          min={getTodayDateTime()}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
@@ -397,6 +483,7 @@ export default function MyBookings() {
                           type="datetime-local"
                           value={newEndTime}
                           onChange={(e) => setNewEndTime(e.target.value)}
+                          min={newStartTime || getTodayDateTime()}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>

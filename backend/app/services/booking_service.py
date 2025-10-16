@@ -143,6 +143,23 @@ class BookingService:
             self.db.add(booking_request)
             self.db.flush()  # Get the ID
             
+            # If explicit start/end provided, attempt to lock the requested slots until expiry
+            try:
+                if preferred_start_date and preferred_end_date:
+                    # Find matching time slot(s); support multi-slot by duration
+                    slot_ids = self._find_requested_time_slot(
+                        trainer_id=trainer_id,
+                        start_time=preferred_start_date,
+                        end_time=preferred_end_date,
+                        duration_minutes=duration_minutes
+                    )
+                    if slot_ids:
+                        # Lock slots until the request expires (soft-hold)
+                        lock_minutes = int((booking_request.expires_at - datetime.now()).total_seconds() // 60) or 5
+                        self.lock_time_slots(slot_ids, lock_duration_minutes=lock_minutes)
+            except Exception as e:
+                logger.warning(f"Unable to lock requested slots on request creation: {str(e)}")
+
             # Send notification email to trainer
             try:
                 client = self.db.query(User).filter(User.id == client_id).first()
@@ -407,6 +424,20 @@ class BookingService:
             
             booking_request.status = BookingRequestStatus.REJECTED
             booking_request.rejection_reason = rejection_reason
+            
+            # Unlock any slots that may have been locked for this request
+            try:
+                if booking_request.start_time and booking_request.end_time:
+                    slot_ids = self._find_requested_time_slot(
+                        trainer_id=trainer_id,
+                        start_time=booking_request.start_time,
+                        end_time=booking_request.end_time,
+                        duration_minutes=booking_request.duration_minutes
+                    )
+                    if slot_ids:
+                        self.unlock_time_slots(slot_ids)
+            except Exception as e:
+                logger.warning(f"Failed to unlock slots after rejection: {str(e)}")
             
             return {
                 "booking_request_id": booking_request_id,
@@ -854,6 +885,34 @@ class BookingService:
                 "expires_at": req.expires_at.isoformat()
             })
         
+        return result
+
+    def get_booking_requests_for_client(self, client_id: int) -> List[Dict]:
+        """Get all booking requests created by a client (pending and recent)"""
+        requests = self.db.query(BookingRequest).filter(
+            BookingRequest.client_id == client_id
+        ).order_by(BookingRequest.created_at.desc()).all()
+
+        result = []
+        for req in requests:
+            trainer = self.db.query(Trainer).filter(Trainer.id == req.trainer_id).first()
+            trainer_name = trainer.user.full_name if trainer and trainer.user else "Trainer"
+            result.append({
+                "id": req.id,
+                "trainer_name": trainer_name,
+                "session_type": req.session_type,
+                "duration_minutes": req.duration_minutes,
+                "location": req.location,
+                "special_requests": req.special_requests,
+                "preferred_start_date": req.preferred_start_date.isoformat() if req.preferred_start_date else None,
+                "preferred_end_date": req.preferred_end_date.isoformat() if req.preferred_end_date else None,
+                "start_time": req.start_time.isoformat() if getattr(req, 'start_time', None) else None,
+                "end_time": req.end_time.isoformat() if getattr(req, 'end_time', None) else None,
+                "status": req.status.value if hasattr(req.status, 'value') else str(req.status),
+                "created_at": req.created_at.isoformat(),
+                "expires_at": req.expires_at.isoformat() if req.expires_at else None,
+            })
+
         return result
     
     def get_bookings_for_user(self, user_id: int, user_role: str) -> List[Dict]:

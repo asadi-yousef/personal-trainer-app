@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, ProtectedRoute } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { bookings, bookingRequests } from '../../lib/api';
+import { bookings, bookingManagement } from '../../lib/api';
 
 interface SelectedTrainer {
   id: number;
@@ -26,13 +26,22 @@ interface OptimalSlot {
   trainer_price?: number;
 }
 
-export default function OptimalSchedulingPage() {
+function OptimalSchedulingPageContent() {
   const { user } = useAuth();
   const router = useRouter();
   const [selectedTrainer, setSelectedTrainer] = useState<SelectedTrainer | null>(null);
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<OptimalSlot[]>([]);
   const [error, setError] = useState<string | null>(null);
+  
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
   
   // Form state
   const [preferredTimes, setPreferredTimes] = useState<string[]>([]);
@@ -137,12 +146,12 @@ export default function OptimalSchedulingPage() {
         is_recurring: false
       };
 
-      await bookingRequests.create(bookingRequestData);
+      await bookingManagement.createBookingRequest(bookingRequestData);
       alert('Booking request sent successfully! The trainer will review and confirm your booking.');
       
-      // Clear suggestions and redirect to bookings
+      // Clear suggestions and redirect to client dashboard
       setSuggestions([]);
-      router.push('/client/bookings');
+      router.push('/client');
     } catch (err: any) {
       console.error('Error booking slot:', err);
       alert('Failed to send booking request: ' + (err.message || 'Unknown error'));
@@ -234,12 +243,14 @@ export default function OptimalSchedulingPage() {
                   type="date"
                   value={earliestDate}
                   onChange={(e) => setEarliestDate(e.target.value)}
+                  min={getTodayDate()}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <input
                   type="date"
                   value={latestDate}
                   onChange={(e) => setLatestDate(e.target.value)}
+                  min={earliestDate || getTodayDate()}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -446,5 +457,16 @@ export default function OptimalSchedulingPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Optimal scheduling page with role protection - only clients can access
+ */
+export default function OptimalSchedulingPage() {
+  return (
+    <ProtectedRoute requiredRole="client">
+      <OptimalSchedulingPageContent />
+    </ProtectedRoute>
   );
 }

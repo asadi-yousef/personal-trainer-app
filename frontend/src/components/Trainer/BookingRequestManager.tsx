@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bookingRequests } from '../../lib/api';
+import { bookingRequests, bookingManagement } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface BookingRequest {
@@ -47,8 +47,70 @@ export default function BookingRequestManager() {
   const fetchBookingRequests = async () => {
     try {
       setLoading(true);
-      const response = await bookingRequests.getAll({ status: 'PENDING' });
-      setRequests(Array.isArray(response) ? response : []);
+      // Prefer trainer-scoped booking-management endpoint (trainer-only, returns pending for this trainer)
+      const response = await bookingManagement.getBookingRequests();
+      const raw = Array.isArray((response as any)?.booking_requests)
+        ? (response as any).booking_requests
+        : (Array.isArray(response) ? (response as any) : ((response as any)?.requests || (response as any)?.data || []));
+
+      // Normalize: this endpoint already returns only pending requests; ensure each has status 'PENDING'
+      const data: BookingRequest[] = (raw || []).map((r: any) => ({
+        id: r.id,
+        client_name: r.client_name,
+        client_email: r.client_email,
+        session_type: r.session_type,
+        duration_minutes: r.duration_minutes,
+        location: r.location,
+        special_requests: r.special_requests,
+        preferred_start_date: r.preferred_start_date,
+        preferred_end_date: r.preferred_end_date,
+        start_time: r.start_time,
+        end_time: r.end_time,
+        total_cost: r.total_cost,
+        preferred_times: r.preferred_times || [],
+        allow_weekends: !!r.allow_weekends,
+        allow_evenings: !!r.allow_evenings,
+        is_recurring: !!r.is_recurring,
+        status: (r.status || 'PENDING'),
+        created_at: r.created_at,
+        expires_at: r.expires_at,
+      }));
+
+      // Helper: get local midnight for today
+      const getTodayMidnight = () => {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      };
+
+      const todayMidnight = getTodayMidnight().getTime();
+
+      // Keep only future requests:
+      // - prefer preferred_start_date or start_time
+      // - if missing, fall back to expires_at
+      // - if all missing, keep (defensive) so trainers still see them
+      const isFuture = (r: BookingRequest) => {
+        const primaryDateStr = r.preferred_start_date || r.start_time;
+        const fallbackDateStr = r.expires_at;
+        const pick = primaryDateStr || fallbackDateStr;
+        if (!pick) return true; // show undated requests
+        const d = new Date(pick);
+        if (isNaN(d.getTime())) return true; // if unparsable, don't hide it
+        // Compare by day (midnight) to avoid timezone off-by-one
+        const requestMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        return requestMidnight >= todayMidnight;
+      };
+
+      // Keep only future requests (endpoint is pending-only)
+      const futureRequests = data.filter(r => isFuture(r));
+
+      // Optional: sort ascending by date
+      futureRequests.sort((a, b) => {
+        const aDate = new Date(a.preferred_start_date || a.start_time || 0).getTime();
+        const bDate = new Date(b.preferred_start_date || b.start_time || 0).getTime();
+        return aDate - bDate;
+      });
+
+      setRequests(futureRequests);
     } catch (err: any) {
       console.error('Failed to fetch booking requests:', err);
       setError('Failed to load booking requests');
@@ -76,11 +138,9 @@ export default function BookingRequestManager() {
         return;
       }
 
-      await bookingRequests.approve(selectedRequest.id, {
-        status: 'APPROVED',
-        confirmed_date: confirmedDate,
+      await bookingManagement.approveBooking({
+        booking_request_id: selectedRequest.id,
         notes: approvalNotes,
-        alternative_dates: []
       });
 
       // Remove the approved request from the list
@@ -108,12 +168,9 @@ export default function BookingRequestManager() {
     setError(null);
 
     try {
-      await bookingRequests.approve(selectedRequest.id, {
-        status: 'REJECTED',
+      await bookingManagement.rejectBooking({
+        booking_request_id: selectedRequest.id,
         rejection_reason: rejectionReason,
-        notes: '',
-        confirmed_date: selectedRequest.preferred_start_date || new Date().toISOString(),
-        alternative_dates: []
       });
 
       // Remove the rejected request from the list

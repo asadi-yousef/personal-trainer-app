@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bookings, bookingRequests } from '../../lib/api';
+import { bookings, bookingManagement } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 /**
@@ -159,7 +159,7 @@ export default function SuggestedTimes() {
         is_recurring: false
       };
 
-      await bookingRequests.create(bookingRequestData);
+      await bookingManagement.createBookingRequest(bookingRequestData);
       alert(`Booking request sent for ${suggestion.date} at ${suggestion.time}! The trainer will review and confirm your booking.`);
       
       // Remove the suggestion from the list after booking

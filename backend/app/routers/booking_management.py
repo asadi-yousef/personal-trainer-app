@@ -121,6 +121,22 @@ async def get_booking_requests(
     
     return {"booking_requests": requests}
 
+@router.get("/my-booking-requests")
+async def get_my_booking_requests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get booking requests created by the current client"""
+    if current_user.role != UserRole.CLIENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only clients can view their booking requests"
+        )
+
+    booking_service = BookingService(db)
+    requests = booking_service.get_booking_requests_for_client(current_user.id)
+    return {"booking_requests": requests}
+
 @router.post("/approve-booking")
 async def approve_booking_request(
     approval: BookingApproval,

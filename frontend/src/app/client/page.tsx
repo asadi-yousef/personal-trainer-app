@@ -188,9 +188,17 @@ function ClientDashboardContent() {
     initAOS();
   }, []);
 
-  const upcomingSessions = dashboardData.sessions.filter(session => 
-    session.status === 'Confirmed' || session.status === 'Pending'
-  );
+  // Upcoming = future only (timezone-safe) and confirmed/pending
+  const upcomingSessions = dashboardData.sessions
+    .filter(session => session.status === 'Confirmed' || session.status === 'Pending')
+    .filter(session => {
+      if (!session.datetime) return false;
+      const d = new Date(session.datetime);
+      if (isNaN(d.getTime())) return false;
+      const now = new Date();
+      return d.getTime() >= now.getTime();
+    })
+    .sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime());
 
   return (
     <div className="min-h-screen bg-gray-50">

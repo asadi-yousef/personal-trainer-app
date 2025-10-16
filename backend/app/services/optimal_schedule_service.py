@@ -142,10 +142,14 @@ class OptimalScheduleService:
         if not trainer:
             return []
         
-        # Get all pending requests
+        # Get all pending and non-expired requests (align with dashboard)
+        from sqlalchemy import and_
         all_requests = self.db.query(BookingRequest).filter(
-            BookingRequest.trainer_id == trainer_id,
-            BookingRequest.status == BookingRequestStatus.PENDING
+            and_(
+                BookingRequest.trainer_id == trainer_id,
+                BookingRequest.status == BookingRequestStatus.PENDING,
+                BookingRequest.expires_at > datetime.now()
+            )
         ).all()
         
         # Parse trainer's training types

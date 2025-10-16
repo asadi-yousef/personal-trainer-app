@@ -107,6 +107,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = () => {
     auth.logout();
     setUser(null);
+    // Redirect to home page after logout
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
   };
 
   // Refresh user data

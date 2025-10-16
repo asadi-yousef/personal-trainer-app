@@ -6,11 +6,12 @@ import TrainerCard from '../../components/Trainers/TrainerCard';
 import Filters from '../../components/Trainers/Filters';
 import Pagination from '../../components/Trainers/Pagination';
 import { trainers } from '../../lib/api';
+import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
 
 /**
- * Trainers page with filtering and pagination
+ * Trainers page content component
  */
-export default function TrainersPage() {
+function TrainersPageContent() {
   const [trainersData, setTrainersData] = useState<Trainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -194,5 +195,16 @@ export default function TrainersPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+/**
+ * Trainers page with role protection - only clients can access
+ */
+export default function TrainersPage() {
+  return (
+    <ProtectedRoute requiredRole="client">
+      <TrainersPageContent />
+    </ProtectedRoute>
   );
 }

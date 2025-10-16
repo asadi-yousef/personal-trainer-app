@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { timeSlots, bookingRequests } from '../../lib/api';
+import { timeSlots, bookingManagement } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface TimeSlot {
@@ -26,6 +26,7 @@ export default function DirectBooking() {
   const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  const [durationMinutes, setDurationMinutes] = useState<number>(60);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState(false);
@@ -53,7 +54,7 @@ export default function DirectBooking() {
     setError(null);
 
     try {
-      const response = await timeSlots.getAvailable(selectedTrainer.id, date, 60);
+      const response = await timeSlots.getAvailable(selectedTrainer.id, date, durationMinutes);
       console.log('API Response:', response); // Debug log
       
       // Extract available_slots from the response object
@@ -73,6 +74,14 @@ export default function DirectBooking() {
     fetchAvailableSlots(date);
   };
 
+  // Refetch when duration changes
+  useEffect(() => {
+    if (selectedDate) {
+      fetchAvailableSlots(selectedDate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [durationMinutes]);
+
   const handleBookSlot = async (slot: TimeSlot) => {
     if (!user) {
       alert('Please log in to book sessions');
@@ -85,29 +94,37 @@ export default function DirectBooking() {
     }
 
     try {
-      // Create full datetime strings from the selected date and time
-      const startDateTime = new Date(`${selectedDate}T${slot.start_time}:00`);
-      const endDateTime = new Date(`${selectedDate}T${slot.end_time}:00`);
+      // Create Date objects from selected date and slot times (timezone-safe)
+      const [sh, sm] = String(slot.start_time).split(':').map((x: string) => parseInt(x, 10));
+      const [eh, em] = String(slot.end_time).split(':').map((x: string) => parseInt(x, 10));
+      const [y, m, d] = selectedDate.split('-').map((x: string) => parseInt(x, 10));
+      const startDateTime = new Date(y, (m - 1), d, sh || 0, sm || 0, 0);
+      const endDateTime = new Date(y, (m - 1), d, eh || 0, em || 0, 0);
       
       // Create a booking request for the specific time slot
       const bookingRequest = {
         trainer_id: selectedTrainer.id,
         session_type: 'Personal Training',
-        duration_minutes: slot.duration_minutes,
+        duration_minutes: slot.duration_minutes || durationMinutes,
         location: 'Gym Studio',
         special_requests: 'Direct booking from available slots',
-        preferred_start_date: startDateTime.toISOString(),
-        preferred_end_date: endDateTime.toISOString(),
+        // Use local ISO formatting to avoid timezone shifts in backend/UI
+        preferred_start_date: `${startDateTime.getFullYear()}-${String(startDateTime.getMonth()+1).padStart(2,'0')}-${String(startDateTime.getDate()).padStart(2,'0')}T${String(startDateTime.getHours()).padStart(2,'0')}:${String(startDateTime.getMinutes()).padStart(2,'0')}:00`,
+        preferred_end_date: `${endDateTime.getFullYear()}-${String(endDateTime.getMonth()+1).padStart(2,'0')}-${String(endDateTime.getDate()).padStart(2,'0')}T${String(endDateTime.getHours()).padStart(2,'0')}:${String(endDateTime.getMinutes()).padStart(2,'0')}:00`,
+        // Include explicit start/end for trainer dashboard formats
+        start_time: `${startDateTime.getFullYear()}-${String(startDateTime.getMonth()+1).padStart(2,'0')}-${String(startDateTime.getDate()).padStart(2,'0')}T${String(startDateTime.getHours()).padStart(2,'0')}:${String(startDateTime.getMinutes()).padStart(2,'0')}:00`,
+        end_time: `${endDateTime.getFullYear()}-${String(endDateTime.getMonth()+1).padStart(2,'0')}-${String(endDateTime.getDate()).padStart(2,'0')}T${String(endDateTime.getHours()).padStart(2,'0')}:${String(endDateTime.getMinutes()).padStart(2,'0')}:00`,
         preferred_times: [slot.start_time],
         allow_weekends: true,
         allow_evenings: true,
         is_recurring: false
       };
 
-      await bookingRequests.create(bookingRequest);
+      await bookingManagement.createBookingRequest(bookingRequest);
       setBookingSuccess(true);
       
-      // Refresh available slots
+      // Optimistically remove the booked slot from UI, then refresh
+      setAvailableSlots(prev => prev.filter(s => s.id !== slot.id));
       fetchAvailableSlots(selectedDate);
       
       // Clear success message after 3 seconds

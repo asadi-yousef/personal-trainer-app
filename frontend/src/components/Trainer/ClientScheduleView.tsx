@@ -92,7 +92,7 @@ export default function ClientScheduleView() {
   };
 
   const handleScheduleSession = (clientId: string) => {
-    alert(`Scheduling new session for ${clients.find(c => c.id === clientId)?.name}`);
+    alert(`Note: Trainers cannot book sessions directly. Clients must request sessions through the booking system.`);
   };
 
   const handleOptimizeClientSchedule = (clientId: string) => {
@@ -174,9 +174,11 @@ export default function ClientScheduleView() {
               </button>
               <button
                 onClick={() => handleScheduleSession(selectedClient)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus-ring transition-smooth text-sm"
+                className="px-4 py-2 border border-gray-300 text-gray-500 rounded-md hover:bg-gray-50 focus-ring transition-smooth text-sm cursor-not-allowed opacity-60"
+                disabled
+                title="Trainers cannot book sessions directly. Clients must request sessions through the booking system."
               >
-                Schedule New
+                Schedule New (Disabled)
               </button>
             </div>
           </div>
@@ -317,6 +319,7 @@ export default function ClientScheduleView() {
     </div>
   );
 }
+
 
 
 

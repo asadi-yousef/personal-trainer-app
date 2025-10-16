@@ -585,6 +585,10 @@ class ApiClient {
     return this.request('/booking-management/booking-requests');
   }
 
+  async getMyBookingRequests(): Promise<any> {
+    return this.request('/booking-management/my-booking-requests');
+  }
+
   async approveBooking(data: any): Promise<any> {
     return this.request('/booking-management/approve-booking', {
       method: 'POST',
@@ -867,6 +871,7 @@ export const bookingManagement = {
   // Booking requests
   createBookingRequest: (data: any) => apiClient.createBookingRequest(data),
   getBookingRequests: () => apiClient.getBookingRequests(),
+  getMyBookingRequests: () => apiClient.getMyBookingRequests(),
   approveBooking: (data: any) => apiClient.approveBooking(data),
   rejectBooking: (data: any) => apiClient.rejectBooking(data),
   

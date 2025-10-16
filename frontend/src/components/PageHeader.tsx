@@ -2,6 +2,7 @@
 
 import { User } from '../lib/data';
 import FeatherIcon from './FeatherIcon';
+import { useAuth } from '../contexts/AuthContext';
 
 interface PageHeaderProps {
   user?: User | null;
@@ -13,6 +14,8 @@ interface PageHeaderProps {
  * Page header component with title, notifications, and user info
  */
 export default function PageHeader({ user, title = 'Dashboard', subtitle = 'Track your fitness progress and manage your sessions' }: PageHeaderProps) {
+  const { logout } = useAuth();
+  
   // Default user values if user is null
   const displayName = user?.name || user?.full_name || 'User';
   const displayRole = user?.role || 'Member';
@@ -54,11 +57,15 @@ export default function PageHeader({ user, title = 'Dashboard', subtitle = 'Trac
                 <p className="text-sm font-medium text-gray-900">{displayName}</p>
                 <p className="text-xs text-gray-500 capitalize">{displayRole}</p>
               </div>
+              
+              {/* Logout Button */}
               <button 
-                className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg focus-ring transition-smooth"
-                aria-label="User menu"
+                onClick={logout}
+                className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg focus-ring transition-smooth"
+                aria-label="Logout"
+                title="Logout"
               >
-                <FeatherIcon name="chevron-down" size={16} className="inline-block" />
+                <FeatherIcon name="log-out" size={16} className="inline-block" />
               </button>
             </div>
           </div>

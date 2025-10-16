@@ -3,16 +3,10 @@
 import { useState, useEffect } from 'react';
 import Sidebar from '../../components/Sidebar';
 import PageHeader from '../../components/PageHeader';
-import StatCard from '../../components/Cards/StatCard';
-import BookingManager from '../../components/Trainer/BookingManager';
+ 
 import BookingRequestManager from '../../components/Trainer/BookingRequestManager';
 import AvailabilityManager from '../../components/Trainer/AvailabilityManager';
-import ProgramManager from '../../components/Trainer/ProgramManager';
-import ScheduleAnalytics from '../../components/Trainer/ScheduleAnalytics';
-import ChatInterface from '../../components/Messaging/ChatInterface';
-import { mockTrainerStats, mockTrainerBookings, mockTrainerPrograms } from '../../lib/data';
 import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
-import { apiClient, bookings, programs, analytics } from '../../lib/api';
 import ProfileCompletionCheck from '../../components/Trainer/ProfileCompletionCheck';
 
 /**
@@ -24,122 +18,49 @@ function TrainerDashboardContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState({
-    stats: mockTrainerStats,
-    bookings: mockTrainerBookings,
-    programs: mockTrainerPrograms
+    stats: [
+      {
+        id: '1',
+        title: 'Total Clients',
+        value: '0',
+        change: 'No data available',
+        icon: 'users',
+        color: 'green'
+      },
+      {
+        id: '2',
+        title: 'Upcoming Sessions',
+        value: '0',
+        change: 'No data available',
+        icon: 'calendar',
+        color: 'blue'
+      },
+      {
+        id: '3',
+        title: 'Completed Sessions',
+        value: '0',
+        change: 'No data available',
+        icon: 'check-circle',
+        color: 'purple'
+      },
+      {
+        id: '4',
+        title: 'Total Bookings',
+        value: '0',
+        change: 'No data available',
+        icon: 'clipboard',
+        color: 'indigo'
+      }
+    ],
+    bookings: [],
+    programs: []
   });
   const { user } = useAuth();
 
-  // Fetch dashboard data
+  // Set loading to false immediately - no API calls for stats
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!user || !user.trainer_profile) return;
-      
-      try {
-        setLoading(true);
-        setError(null);
-
-        const trainerId = user.trainer_profile.id;
-
-        // Fetch all dashboard data in parallel
-        const [bookingsData, programsData, analyticsData] = await Promise.allSettled([
-          bookings.getAll({ trainer_id: trainerId }),
-          programs.getAll({ trainer_id: trainerId }),
-          analytics.getTrainerAnalytics()
-        ]);
-
-        // Process bookings data
-        let processedBookings = mockTrainerBookings;
-        if (bookingsData.status === 'fulfilled' && bookingsData.value) {
-          processedBookings = bookingsData.value.map((booking: any) => ({
-            id: booking.id.toString(),
-            clientName: booking.client?.user?.full_name || 'Client',
-            clientAvatar: booking.client?.user?.avatar || 'https://i.pravatar.cc/200',
-            sessionType: booking.session_type || 'Training Session',
-            status: booking.status === 'confirmed' ? 'Confirmed' : 
-                   booking.status === 'pending' ? 'Pending' : 
-                   booking.status === 'completed' ? 'Completed' : 'Cancelled',
-            datetime: booking.confirmed_date || booking.preferred_start_date,
-            duration: booking.duration_minutes || 60,
-            location: booking.location || 'Gym'
-          }));
-        }
-
-        // Process programs data
-        let processedPrograms = mockTrainerPrograms;
-        if (programsData.status === 'fulfilled' && programsData.value) {
-          processedPrograms = programsData.value.slice(0, 3).map((program: any) => ({
-            id: program.id.toString(),
-            title: program.name || 'Training Program',
-            clientName: 'Multiple Clients',
-            clientAvatar: 'https://i.pravatar.cc/200',
-            status: program.is_active ? 'Active' : 'Completed',
-            duration: `${program.duration_weeks || 12} weeks`,
-            sessionsCompleted: program.workouts?.length || 0,
-            totalSessions: program.duration_weeks * 2 || 24 // Assuming 2 sessions per week
-          }));
-        }
-
-        // Generate dynamic stats based on real data
-        const dynamicStats = [
-          {
-            id: '1',
-            title: 'Total Clients',
-            value: processedBookings.length > 0 ? 
-              new Set(processedBookings.map(b => b.clientName)).size.toString() : '24',
-            change: '+3 this month',
-            changeType: 'increase' as const,
-            icon: 'users',
-            color: 'green'
-          },
-          {
-            id: '2',
-            title: 'Sessions This Week',
-            value: processedBookings.filter(b => 
-              b.status === 'Confirmed' || b.status === 'Pending'
-            ).length.toString(),
-            change: '+5 from last week',
-            changeType: 'increase' as const,
-            icon: 'calendar',
-            color: 'blue'
-          },
-          {
-            id: '3',
-            title: 'Monthly Earnings',
-            value: `$${(processedBookings.length * 85).toLocaleString()}`,
-            change: '+12%',
-            changeType: 'increase' as const,
-            icon: 'dollar-sign',
-            color: 'purple'
-          },
-          {
-            id: '4',
-            title: 'Average Rating',
-            value: '4.9',
-            change: 'Based on 127 reviews',
-            changeType: 'increase' as const,
-            icon: 'star',
-            color: 'indigo'
-          }
-        ];
-
-        setDashboardData({
-          stats: dynamicStats,
-          bookings: processedBookings,
-          programs: processedPrograms
-        });
-
-      } catch (err) {
-        console.error('Error fetching trainer dashboard data:', err);
-        setError('Failed to load dashboard data. Using demo data.');
-        // Keep mock data as fallback
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, [user]);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -177,9 +98,7 @@ function TrainerDashboardContent() {
     }
   }, [sidebarCollapsed, mounted]);
 
-  const upcomingBookings = dashboardData.bookings.filter(booking => 
-    booking.status === 'Confirmed' || booking.status === 'Pending'
-  );
+  const upcomingBookings: any[] = [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -206,127 +125,119 @@ function TrainerDashboardContent() {
                   Ready to help your clients achieve their fitness goals? Let's make today great!
                 </p>
               </div>
-              <button className="mt-4 lg:mt-0 bg-white text-indigo-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-smooth focus-ring">
+              <button onClick={() => (window.location.href = '/trainer/availability')} className="mt-4 lg:mt-0 bg-white text-indigo-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-smooth focus-ring">
                 Update Availability
               </button>
             </div>
           </div>
 
-          {/* Loading State */}
-          {loading && (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-            </div>
-          )}
-
-          {/* Error State */}
-          {error && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <i data-feather="alert-triangle" className="h-5 w-5 text-yellow-400"></i>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-yellow-700">{error}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Stats Cards */}
-          {!loading && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {dashboardData.stats.map((stat, index) => (
-                <div key={stat.id} data-aos="fade-up" data-aos-delay={index * 100}>
-                  <StatCard stat={stat} />
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Removed Stats Cards section to avoid no-data components */}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Column */}
             <div className="lg:col-span-2 space-y-8">
-              {/* Upcoming Bookings */}
+              {/* Booking Requests - Essential for trainers */}
               <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">Client Bookings</h2>
-                <BookingManager />
-              </div>
-
-              {/* Booking Requests */}
-              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="50">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Booking Requests</h2>
                 <BookingRequestManager />
               </div>
 
-              {/* Availability Calendar */}
-              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="100">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">Availability Calendar</h2>
-                <AvailabilityManager />
-              </div>
-
-              {/* Optimal Schedule Finder - Link to dedicated page */}
-              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="150">
-                <div className="text-center py-8">
-                  <svg className="w-16 h-16 text-indigo-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Optimal Schedule Generator</h3>
-                  <p className="text-gray-600 mb-4">
-                    AI-powered algorithm to maximize consecutive sessions
-                  </p>
-                  <button 
-                    onClick={() => window.location.href = '/trainer/schedule'}
-                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-                  >
-                    Generate Schedule
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* Right Column */}
             <div className="space-y-8">
-              {/* Schedule Analytics */}
-              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="200">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">Schedule Analytics</h2>
-                <ScheduleAnalytics />
-              </div>
-
-              {/* Program Management */}
-              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="250">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">Program Management</h2>
-                <ProgramManager />
-              </div>
-
               {/* Quick Actions */}
               <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="300">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Quick Actions</h2>
                 <div className="space-y-3">
-                  <button className="w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-smooth focus-ring">
-                    <div className="flex items-center">
-                      <i data-feather="calendar" className="h-5 w-5 text-indigo-600 mr-3"></i>
-                      <span className="font-medium">Schedule Session</span>
-                    </div>
-                  </button>
-                  <button className="w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-smooth focus-ring">
-                    <div className="flex items-center">
-                      <i data-feather="clipboard" className="h-5 w-5 text-indigo-600 mr-3"></i>
-                      <span className="font-medium">Create Program</span>
-                    </div>
-                  </button>
-                  <button className="w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-smooth focus-ring">
+                  <button 
+                    onClick={() => window.location.href = '/trainer/clients'}
+                    className="w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-smooth focus-ring"
+                  >
                     <div className="flex items-center">
                       <i data-feather="users" className="h-5 w-5 text-indigo-600 mr-3"></i>
-                      <span className="font-medium">Manage Clients</span>
+                      <span className="font-medium">View My Clients</span>
                     </div>
                   </button>
-                  <button className="w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-smooth focus-ring">
+                  <button 
+                    onClick={() => window.location.href = '/trainer/bookings'}
+                    className="w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-smooth focus-ring"
+                  >
+                    <div className="flex items-center">
+                      <i data-feather="calendar" className="h-5 w-5 text-indigo-600 mr-3"></i>
+                      <span className="font-medium">Manage Bookings</span>
+                    </div>
+                  </button>
+                  <button 
+                    onClick={() => window.location.href = '/trainer/messages'}
+                    className="w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-smooth focus-ring"
+                  >
                     <div className="flex items-center">
                       <i data-feather="message-circle" className="h-5 w-5 text-indigo-600 mr-3"></i>
                       <span className="font-medium">Messages</span>
                     </div>
                   </button>
+                </div>
+              </div>
+
+              {/* Upcoming Sessions */}
+              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="350">
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">Upcoming Sessions</h2>
+                <div className="space-y-4">
+                  {upcomingBookings.slice(0, 3).map((booking) => (
+                    <div key={booking.id} className="p-4 border border-gray-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900">{booking.clientName}</p>
+                          <p className="text-sm text-gray-600">{booking.sessionType}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-gray-900">{booking.datetime}</p>
+                          <p className="text-xs text-gray-500">{booking.duration} min</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {upcomingBookings.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <i data-feather="clock" className="h-12 w-12 mx-auto mb-2"></i>
+                      <p>No upcoming sessions</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Recent Activity */}
+              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="400">
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">Recent Activity</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
+                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                      <i data-feather="check-circle" className="h-4 w-4 text-green-600"></i>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Session completed</p>
+                      <p className="text-xs text-gray-500">2 hours ago</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <i data-feather="user-plus" className="h-4 w-4 text-blue-600"></i>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">New client booked</p>
+                      <p className="text-xs text-gray-500">1 day ago</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3 p-3 bg-purple-50 rounded-lg">
+                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                      <i data-feather="message-circle" className="h-4 w-4 text-purple-600"></i>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">New message received</p>
+                      <p className="text-xs text-gray-500">3 days ago</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -346,7 +257,5 @@ export default function TrainerDashboard() {
     </ProtectedRoute>
   );
 }
-
-
 
 

@@ -94,6 +94,12 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
       return;
     }
     
+    // Prevent trainers from booking sessions with other trainers
+    if (user.role === 'trainer') {
+      alert('Trainers cannot book sessions with other trainers. This feature is for clients only.');
+      return;
+    }
+    
     // Store trainer info for optimal scheduling
     localStorage.setItem('selectedTrainer', JSON.stringify({
       id: mappedTrainer.id,
@@ -110,6 +116,12 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
   const handleBrowseAvailable = () => {
     if (!user) {
       alert('Please log in to book sessions with trainers');
+      return;
+    }
+    
+    // Prevent trainers from booking sessions with other trainers
+    if (user.role === 'trainer') {
+      alert('Trainers cannot book sessions with other trainers. This feature is for clients only.');
       return;
     }
     
@@ -275,25 +287,27 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
             </button>
           </div>
           
-          {/* Smart Scheduling Actions */}
-          <div className="flex space-x-2">
-            <button 
-              onClick={handleFindOptimalTimes}
-              disabled={isBooking}
-              className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:from-indigo-600 hover:to-purple-700 transition-smooth focus-ring text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <i data-feather="zap" className="h-4 w-4 mr-2"></i>
-              {isBooking ? 'Booking...' : 'Find Optimal Times'}
-            </button>
-            <button 
-              onClick={handleBrowseAvailable}
-              disabled={isBooking}
-              className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-200 transition-smooth focus-ring text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <i data-feather="calendar" className="h-4 w-4 mr-2"></i>
-              Browse Available
-            </button>
-          </div>
+          {/* Smart Scheduling Actions - Only show for clients */}
+          {user?.role !== 'trainer' && (
+            <div className="flex space-x-2">
+              <button 
+                onClick={handleFindOptimalTimes}
+                disabled={isBooking}
+                className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:from-indigo-600 hover:to-purple-700 transition-smooth focus-ring text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <i data-feather="zap" className="h-4 w-4 mr-2"></i>
+                {isBooking ? 'Booking...' : 'Find Optimal Times'}
+              </button>
+              <button 
+                onClick={handleBrowseAvailable}
+                disabled={isBooking}
+                className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-200 transition-smooth focus-ring text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <i data-feather="calendar" className="h-4 w-4 mr-2"></i>
+                Browse Available
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

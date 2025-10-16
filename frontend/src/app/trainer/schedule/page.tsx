@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Sidebar from '../../../components/Sidebar';
 import PageHeader from '../../../components/PageHeader';
 import { ProtectedRoute, useAuth } from '../../../contexts/AuthContext';
-import { apiClient } from '../../../lib/api';
+import { apiClient, bookingManagement } from '../../../lib/api';
 
 interface SlotInfo {
   booking_request_id: number;
@@ -46,6 +46,8 @@ function TrainerScheduleContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scheduleData, setScheduleData] = useState<OptimalScheduleData | null>(null);
+  const [filteredEntries, setFilteredEntries] = useState<SlotInfo[]>([]);
+  const [pendingRequestIds, setPendingRequestIds] = useState<Set<number>>(new Set());
   const [selectedEntries, setSelectedEntries] = useState<Set<number>>(new Set());
   const [applying, setApplying] = useState(false);
   
@@ -70,7 +72,48 @@ function TrainerScheduleContent() {
 
       // Call the optimal schedule endpoint that uses saved preferences
       const response = await apiClient.get<OptimalScheduleData>('/trainer/me/optimal-schedule');
-      setScheduleData(response);
+      
+      // Fetch current pending requests for this trainer to align with dashboard
+      let ids = new Set<number>();
+      try {
+        const reqs = await bookingManagement.getBookingRequests();
+        const list = Array.isArray((reqs as any)?.booking_requests)
+          ? (reqs as any).booking_requests
+          : (Array.isArray(reqs) ? (reqs as any) : ((reqs as any)?.requests || (reqs as any)?.data || []));
+        ids = new Set<number>((list || [])
+          .filter((r: any) => {
+            const s = (r.status || '').toLowerCase();
+            return s === 'pending' || s === 'awaiting' || s === 'awaiting_confirmation';
+          })
+          .map((r: any) => r.id));
+        setPendingRequestIds(ids);
+      } catch (_) {
+        // If this fails, we still proceed with date-only filter
+      }
+
+      // Defensive: keep only entries whose preferred_start_date/start_time is today or future
+      const today = new Date();
+      const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+
+      const isFuture = (dateStr?: string | null) => {
+        if (!dateStr) return false;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return false;
+        const reqMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        return reqMidnight >= midnight;
+      };
+
+      let futureEntries = (response?.proposed_entries || []).filter(e => 
+        isFuture(e.preferred_start_date) || isFuture(e.start_time)
+      );
+
+      // If we have pending IDs, intersect to ensure alignment with dashboard pending list
+      if (ids.size > 0) {
+        futureEntries = futureEntries.filter(e => ids.has(e.booking_request_id));
+      }
+
+      setScheduleData({ ...response, proposed_entries: futureEntries });
+      setFilteredEntries(futureEntries);
     } catch (err: any) {
       console.error('Error fetching optimal schedule:', err);
       setError(err.response?.data?.detail || err.message || 'Failed to generate optimal schedule');
@@ -90,8 +133,7 @@ function TrainerScheduleContent() {
   };
 
   const selectAllEntries = () => {
-    if (!scheduleData) return;
-    const allIds = new Set(scheduleData.proposed_entries.map(e => e.booking_request_id));
+    const allIds = new Set(filteredEntries.map(e => e.booking_request_id));
     setSelectedEntries(allIds);
   };
 
@@ -340,7 +382,7 @@ function TrainerScheduleContent() {
           )}
 
           {/* Actions Bar */}
-          {scheduleData && scheduleData.proposed_entries.length > 0 && (
+  {filteredEntries.length > 0 && (
             <div className="bg-white rounded-xl shadow-md p-6 mb-8">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -455,7 +497,7 @@ function TrainerScheduleContent() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {scheduleData.proposed_entries.map((entry) => (
+                    {filteredEntries.map((entry) => (
                       <tr 
                         key={entry.booking_request_id}
                         className={`hover:bg-gray-50 transition-colors ${
@@ -542,7 +584,7 @@ function TrainerScheduleContent() {
 
 export default function TrainerSchedulePage() {
   return (
-    <ProtectedRoute allowedRoles={['trainer']}>
+    <ProtectedRoute requiredRole="trainer">
       <TrainerScheduleContent />
     </ProtectedRoute>
   );

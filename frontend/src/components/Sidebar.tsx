@@ -51,10 +51,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         { icon: 'zap', label: 'Optimal Schedule', href: '/trainer/schedule' },
         { icon: 'calendar', label: 'Bookings', href: '/trainer/bookings' },
         { icon: 'clock', label: 'Availability', href: '/trainer/availability' },
-        { icon: 'clipboard', label: 'Programs', href: '/trainer/programs' },
         { icon: 'users', label: 'Clients', href: '/trainer/clients' },
         { icon: 'message-square', label: 'Messages', href: '/trainer/messages' },
-        { icon: 'trending-up', label: 'Analytics', href: '/trainer/analytics' },
       ],
     },
     {
