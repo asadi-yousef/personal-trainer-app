@@ -283,10 +283,13 @@ export default function BookingRequestManager() {
                         // New format: show specific requested time
                         <>
                           <p className="text-sm text-gray-600">
-                            <span className="font-medium">Requested Time:</span>
+                            <span className="font-medium">Requested Session Time:</span>
                           </p>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm font-semibold text-indigo-600">
                             {formatDate(request.start_time)} at {formatTime(request.start_time)} - {formatTime(request.end_time)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Duration: {request.duration_minutes} minutes
                           </p>
                         </>
                       ) : (
@@ -359,6 +362,14 @@ export default function BookingRequestManager() {
                     <div><span className="font-medium">Location:</span> {selectedRequest.location}</div>
                     <div><span className="font-medium">Recurring:</span> {selectedRequest.is_recurring ? 'Yes' : 'No'}</div>
                   </div>
+                  {selectedRequest.start_time && selectedRequest.end_time && (
+                    <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                      <h5 className="font-medium text-indigo-900 mb-1">Session Time</h5>
+                      <p className="text-sm text-indigo-800">
+                        {formatDate(selectedRequest.start_time)} from {formatTime(selectedRequest.start_time)} to {formatTime(selectedRequest.end_time)}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Approval Section */}
@@ -370,7 +381,10 @@ export default function BookingRequestManager() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                       <span className="text-sm font-medium text-green-800">
-                        This will approve the booking for the requested time slot
+                        {selectedRequest.start_time && selectedRequest.end_time 
+                          ? `This will approve the booking for ${formatDate(selectedRequest.start_time)} from ${formatTime(selectedRequest.start_time)} to ${formatTime(selectedRequest.end_time)}`
+                          : 'This will approve the booking for the requested time slot'
+                        }
                       </span>
                     </div>
                   </div>

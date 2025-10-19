@@ -406,7 +406,7 @@ export default function MyBookings() {
                       Reschedule
                     </button>
                   )}
-                  {booking.status.toLowerCase() === 'confirmed' && !booking.has_payment && booking.total_cost && booking.total_cost > 0 && (
+                  {booking.status.toLowerCase() === 'confirmed' && !booking.has_payment && (
                     <button
                       onClick={() => handlePayNow(booking)}
                       className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm"

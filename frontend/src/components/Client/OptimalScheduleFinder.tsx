@@ -264,7 +264,7 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
                     <option key={trainer.id} value={trainer.id}>
                       {trainer.user_name || trainer.name} - {trainer.specialty || 'Personal Trainer'} 
                       {trainer.rating ? ` (⭐ ${trainer.rating})` : ''} 
-                      {trainer.price_per_session ? ` - $${trainer.price_per_session}/session` : ''}
+                      {(trainer.price_per_hour || trainer.price_per_session) ? ` - $${trainer.price_per_hour || trainer.price_per_session}/hour` : ''}
                     </option>
                   ))}
               </select>
@@ -300,9 +300,9 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
                         {availableTrainers.find(t => t.id === selectedTrainer)?.rating || 5} 
                         ({availableTrainers.find(t => t.id === selectedTrainer)?.reviews || 10} reviews)
                       </span>
-                      {availableTrainers.find(t => t.id === selectedTrainer)?.price_per_session && (
+                      {(availableTrainers.find(t => t.id === selectedTrainer)?.price_per_hour || availableTrainers.find(t => t.id === selectedTrainer)?.price_per_session) && (
                         <span className="text-xs text-indigo-600 ml-2">
-                          ${availableTrainers.find(t => t.id === selectedTrainer)?.price_per_session}/session
+                          ${availableTrainers.find(t => t.id === selectedTrainer)?.price_per_hour || availableTrainers.find(t => t.id === selectedTrainer)?.price_per_session}/hour
                         </span>
                       )}
                     </div>

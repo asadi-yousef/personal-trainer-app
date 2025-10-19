@@ -3,7 +3,7 @@ Sessions router for FitConnect API
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 from datetime import datetime, timedelta
 from app.database import get_db
@@ -121,13 +121,18 @@ async def get_sessions(
     # Order by scheduled date
     sessions = query.order_by(Session.scheduled_date.desc()).all()
     
+    # Optimized query with joins to avoid N+1 problem
+    sessions_with_relations = db.query(Session)\
+        .options(
+            joinedload(Session.client),
+            joinedload(Session.trainer).joinedload(Trainer.user)
+        )\
+        .filter(Session.id.in_([s.id for s in sessions]))\
+        .all()
+    
     # Format response
     session_responses = []
-    for session in sessions:
-        client = db.query(User).filter(User.id == session.client_id).first()
-        trainer = db.query(Trainer).filter(Trainer.id == session.trainer_id).first()
-        trainer_user = db.query(User).filter(User.id == trainer.user_id).first()
-        
+    for session in sessions_with_relations:
         session_responses.append(SessionResponse(
             id=session.id,
             client_id=session.client_id,
@@ -141,9 +146,9 @@ async def get_sessions(
             status=session.status,
             notes=session.notes,
             created_at=session.created_at,
-            client_name=client.full_name,
-            trainer_name=trainer_user.full_name,
-            trainer_avatar=trainer_user.avatar
+            client_name=session.client.full_name,
+            trainer_name=session.trainer.user.full_name,
+            trainer_avatar=session.trainer.user.avatar
         ))
     
     return session_responses

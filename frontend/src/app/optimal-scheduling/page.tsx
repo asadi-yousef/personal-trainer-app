@@ -11,6 +11,7 @@ interface SelectedTrainer {
   specialty: string;
   rating: number;
   price: number;
+  price_per_hour?: number;
 }
 
 interface OptimalSlot {
@@ -90,7 +91,7 @@ function OptimalSchedulingPageContent() {
         latest_date: new Date(latestDate).toISOString(),
         trainer_id: selectedTrainer?.id || null,
         location: 'Gym',
-        special_requests: 'Booked via optimal scheduling'
+        special_requests: 'Booked via optimal scheduling algorithm'
       };
 
       const response = await bookings.findOptimalSchedule(bookingData);
@@ -131,6 +132,31 @@ function OptimalSchedulingPageContent() {
     }
 
     try {
+      // Check for existing bookings that might conflict
+      const slotStartTime = new Date(`${slot.date_str}T${slot.start_time_str}:00`);
+      const slotEndTime = new Date(`${slot.date_str}T${slot.end_time_str}:00`);
+      
+      // Get user's existing bookings to check for conflicts
+      const existingBookings = await bookingManagement.getMyBookings();
+      
+      // Check for time conflicts
+      const hasConflict = existingBookings.some((booking: any) => {
+        if (!booking.start_time || !booking.end_time || booking.status === 'cancelled') {
+          return false;
+        }
+        
+        const bookingStart = new Date(booking.start_time);
+        const bookingEnd = new Date(booking.end_time);
+        
+        // Check if the new slot overlaps with existing booking
+        return (slotStartTime < bookingEnd && slotEndTime > bookingStart);
+      });
+      
+      if (hasConflict) {
+        alert('This time slot conflicts with one of your existing bookings. Please choose a different time.');
+        return;
+      }
+
       // Create a booking request for the optimal slot
       const bookingRequestData = {
         trainer_id: slot.trainer_id || selectedTrainer?.id,
@@ -188,12 +214,12 @@ function OptimalSchedulingPageContent() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            {selectedTrainer ? `Find Optimal Times with ${selectedTrainer.name}` : 'Find Optimal Training Schedule'}
+            {selectedTrainer ? `Find Optimal Times with ${selectedTrainer.name}` : 'Browse All Optimal Times'}
           </h1>
           <p className="text-gray-600">
             {selectedTrainer 
               ? `Get the best available times for training with ${selectedTrainer.name}`
-              : 'Get the best available times across all trainers'
+              : 'Find the best available times across all trainers based on your preferences'
             }
           </p>
         </div>
@@ -211,7 +237,7 @@ function OptimalSchedulingPageContent() {
                     {'★'.repeat(Math.floor(selectedTrainer.rating))}
                   </div>
                   <span className="text-sm text-gray-600">
-                    {selectedTrainer.rating} • ${selectedTrainer.price}/session
+                    {selectedTrainer.rating} • ${(selectedTrainer.price_per_hour || 0) > 0 ? selectedTrainer.price_per_hour : selectedTrainer.price}/hour
                   </span>
                 </div>
               </div>
@@ -222,7 +248,7 @@ function OptimalSchedulingPageContent() {
                 }}
                 className="text-sm text-indigo-600 hover:text-indigo-800"
               >
-                Change Trainer
+                Browse All Trainers
               </button>
             </div>
           </div>
@@ -437,7 +463,7 @@ function OptimalSchedulingPageContent() {
                           )}
                           {slot.trainer_price && (
                             <div className="text-sm text-gray-600">
-                              ${slot.trainer_price}/session
+                              ${slot.trainer_price}/hour
                             </div>
                           )}
                         </div>

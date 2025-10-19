@@ -106,7 +106,8 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
       name: mappedTrainer.name,
       specialty: mappedTrainer.specialty,
       rating: mappedTrainer.rating,
-      price: mappedTrainer.price
+      price: mappedTrainer.pricePerHour > 0 ? mappedTrainer.pricePerHour : mappedTrainer.pricePerSession,
+      price_per_hour: mappedTrainer.pricePerHour > 0 ? mappedTrainer.pricePerHour : mappedTrainer.pricePerSession
     }));
     
     // Navigate to optimal scheduling modal/page
@@ -262,22 +263,10 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              {mappedTrainer.pricePerHour > 0 ? (
-                <div>
-                  <span className="text-2xl font-bold text-indigo-600">${mappedTrainer.pricePerHour}</span>
-                  <span className="text-gray-600 text-sm ml-1">/hour</span>
-                  {mappedTrainer.pricePerSession > 0 && (
-                    <div className="text-sm text-gray-500">
-                      ${mappedTrainer.pricePerSession}/session
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <span className="text-2xl font-bold text-indigo-600">${mappedTrainer.pricePerSession}</span>
-                  <span className="text-gray-600 text-sm ml-1">/session</span>
-                </div>
-              )}
+              <div>
+                <span className="text-2xl font-bold text-indigo-600">${mappedTrainer.pricePerHour > 0 ? mappedTrainer.pricePerHour : mappedTrainer.pricePerSession}</span>
+                <span className="text-gray-600 text-sm ml-1">/hour</span>
+              </div>
             </div>
             <button 
               onClick={handleViewProfile}

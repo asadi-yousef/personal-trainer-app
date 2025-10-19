@@ -1,0 +1,574 @@
+[
+  {
+    "id": "TC001",
+    "title": "User registration with valid credentials",
+    "description": "Verify that a new user can register successfully with valid input data and receives the correct role assignment.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the registration page"
+      },
+      {
+        "type": "action",
+        "description": "Fill in valid username, email, password, and select user role (client, trainer, or admin)"
+      },
+      {
+        "type": "action",
+        "description": "Submit the registration form"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm registration is successful and user receives JWT token with appropriate role claims"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "User login with correct credentials",
+    "description": "Check that users can log in successfully with their registered credentials and obtain a valid JWT token.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid username/email and password"
+      },
+      {
+        "type": "action",
+        "description": "Click login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Check login is successful and JWT token is issued"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "User login with invalid credentials",
+    "description": "Validate that login fails with incorrect username or password and proper error messages are shown.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Input invalid username/email or incorrect password"
+      },
+      {
+        "type": "action",
+        "description": "Click login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify login failure and display of relevant error message"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "JWT token expiration and role enforcement",
+    "description": "Ensure tokens expire correctly and role-based access control blocks unauthorized actions.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as a user and obtain JWT token"
+      },
+      {
+        "type": "action",
+        "description": "Wait until token expires or simulate expiration"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to access protected endpoints"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm access is denied with authorization error"
+      },
+      {
+        "type": "action",
+        "description": "Log in as client and attempt to access admin-only functionality"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify access is blocked due to insufficient role privileges"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Trainer profile creation and update",
+    "description": "Verify trainers can create, edit, and save profile details including specialties, pricing, bio, and registration status.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as trainer"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to profile management page"
+      },
+      {
+        "type": "action",
+        "description": "Fill in specialties, hourly pricing, bio, and other required fields"
+      },
+      {
+        "type": "action",
+        "description": "Submit the profile form"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm profile data is saved and registration completion status is updated"
+      },
+      {
+        "type": "action",
+        "description": "Update profile fields and save changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updated profile data persists accurately"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Bulk creation of trainer availability time slots",
+    "description": "Test that trainers can bulk create availability time slots with correct date/time and prevent overlapping slots.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as trainer"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to availability management page"
+      },
+      {
+        "type": "action",
+        "description": "Select a range of dates and times for bulk slot creation"
+      },
+      {
+        "type": "action",
+        "description": "Submit bulk creation request"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm time slots are created correctly without overlaps"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to create overlapping time slots"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify system prevents double booking or duplicate availability slots"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Direct booking flow for client",
+    "description": "Validate that clients can book an available session directly with a trainer and receive booking confirmation.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as client"
+      },
+      {
+        "type": "action",
+        "description": "Browse trainer profiles and view available time slots"
+      },
+      {
+        "type": "action",
+        "description": "Select a suitable time slot and book session directly"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm booking is registered with status 'approved' or as per system rules"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Booking request and approval workflow",
+    "description": "Ensure clients can send booking requests and trainers can approve or reject these requests appropriately.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as client and request booking for a given trainer/time slot"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify booking status is 'pending approval'"
+      },
+      {
+        "type": "action",
+        "description": "Log in as trainer and review pending booking requests"
+      },
+      {
+        "type": "action",
+        "description": "Approve the booking request"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm booking status updates to 'approved' and client receives notification"
+      },
+      {
+        "type": "action",
+        "description": "Reject a booking request and confirm status updates to 'rejected'"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "AI-powered smart scheduling suggestion",
+    "description": "Test that AI smart scheduler provides optimal booking time slots based on trainer-client preferences and availability.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as client"
+      },
+      {
+        "type": "action",
+        "description": "Input preferences for session timing and trainer traits"
+      },
+      {
+        "type": "action",
+        "description": "Request AI-powered scheduling suggestions"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that suggested time slots are optimal and respect trainer availability"
+      },
+      {
+        "type": "action",
+        "description": "Select suggested slot and confirm booking"
+      },
+      {
+        "type": "assertion",
+        "description": "Booking is created with correct details and trainer approval processes triggered if applicable"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Payment processing with valid credit card information",
+    "description": "Check that payments can be simulated successfully with valid credit card details and transaction is recorded correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as client"
+      },
+      {
+        "type": "action",
+        "description": "Book a session requiring payment"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid credit card information in the simulated payment form"
+      },
+      {
+        "type": "action",
+        "description": "Submit payment"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm payment success and transaction details are saved in system history"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Payment processing with invalid credit card data",
+    "description": "Verify that payment simulation fails when provided invalid credit card numbers or invalid input and error is displayed.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Attempt payment with invalid credit card number format"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm payment is rejected with validation error"
+      },
+      {
+        "type": "action",
+        "description": "Attempt payment with expired date or invalid CVV"
+      },
+      {
+        "type": "assertion",
+        "description": "Payment is rejected and relevant error message presented"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Refund processing for completed transactions",
+    "description": "Ensure admins can process refunds for payments and transaction history is updated accordingly.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as admin"
+      },
+      {
+        "type": "action",
+        "description": "Access payment transaction history"
+      },
+      {
+        "type": "action",
+        "description": "Select a completed transaction and initiate a refund"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm refund is processed and transaction status updates"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Prevent double booking of time slots",
+    "description": "Verify that the system prevents clients from booking an already booked trainer time slot or overlapping sessions.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Client A books a trainer time slot"
+      },
+      {
+        "type": "action",
+        "description": "Client B attempts to book the same trainer time slot"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm system prevents second booking and returns an error message"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "In-app messaging: send and receive messages",
+    "description": "Test real-time messaging functionality between clients and trainers including delivery and read status updates.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as client and trainer concurrently"
+      },
+      {
+        "type": "action",
+        "description": "Client sends a message to trainer"
+      },
+      {
+        "type": "assertion",
+        "description": "Trainer receives message with status 'delivered'"
+      },
+      {
+        "type": "action",
+        "description": "Trainer reads the message"
+      },
+      {
+        "type": "assertion",
+        "description": "Message status updates to 'read' for client"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Workout program creation and assignment",
+    "description": "Verify trainers can create workout programs, assign to clients, and clients can track progress correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as trainer"
+      },
+      {
+        "type": "action",
+        "description": "Create a new workout program with multiple exercises"
+      },
+      {
+        "type": "action",
+        "description": "Assign the workout program to a client"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm workout program is assigned and visible by client"
+      },
+      {
+        "type": "action",
+        "description": "Client logs in and views assigned workout program"
+      },
+      {
+        "type": "action",
+        "description": "Client updates progress on exercises"
+      },
+      {
+        "type": "assertion",
+        "description": "Trainer sees updated client progress correctly"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Session status lifecycle management",
+    "description": "Test end-to-end session lifecycle from booking creation, approval, session active, completed status updates, and history logging.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Client books a session"
+      },
+      {
+        "type": "assertion",
+        "description": "Booking status is 'pending' or 'approved' depending on booking type"
+      },
+      {
+        "type": "action",
+        "description": "Trainer approves and marks session as 'active' when started"
+      },
+      {
+        "type": "assertion",
+        "description": "Session shows active status to both users"
+      },
+      {
+        "type": "action",
+        "description": "Trainer or system marks session as 'completed' after it ends"
+      },
+      {
+        "type": "assertion",
+        "description": "Session history reflects final completed status correctly"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Admin analytics dashboard data accuracy",
+    "description": "Validate that the admin analytics dashboard displays real-time and accurate data for sessions, users, payments, and KPIs.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as admin"
+      },
+      {
+        "type": "action",
+        "description": "Access analytics dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm accurate display of number of active sessions, total users, payments, and key performance indicators"
+      },
+      {
+        "type": "action",
+        "description": "Verify data updates in real time with recent bookings, payments, and users added"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Messaging error handling: send message to non-existent user",
+    "description": "Ensure that the system handles attempts to send messages to invalid or deleted users gracefully with proper error notifications.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as client or trainer"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to send a message to a non-existent or deleted user ID"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the system returns an error and does not crash or store invalid message"
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "Booking edge case: booking on boundary time slot",
+    "description": "Verify booking can be made on time slots that start or end at boundary times (e.g. midnight or edge of trainer availability).",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Select a trainer time slot starting at 00:00 or ending at the end of availability"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to book this exact time slot"
+      },
+      {
+        "type": "assertion",
+        "description": "Booking is allowed if within availability and no overlaps occur"
+      }
+    ]
+  },
+  {
+    "id": "TC020",
+    "title": "Workout program access control",
+    "description": "Verify that only trainers can create and assign workout programs, and clients can only view assigned programs.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as client and attempt to create or assign workout programs"
+      },
+      {
+        "type": "assertion",
+        "description": "Ensure client is denied access with appropriate error"
+      },
+      {
+        "type": "action",
+        "description": "Log in as trainer and create workout program"
+      },
+      {
+        "type": "assertion",
+        "description": "Trainer can create and assign programs successfully"
+      },
+      {
+        "type": "action",
+        "description": "Log in as client and view programs"
+      },
+      {
+        "type": "assertion",
+        "description": "Client sees only assigned workout programs"
+      }
+    ]
+  }
+]

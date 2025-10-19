@@ -918,6 +918,8 @@ class BookingService:
     def get_bookings_for_user(self, user_id: int, user_role: str) -> List[Dict]:
         """Get all bookings for a user (client or trainer)"""
         
+        print(f"DEBUG: Getting bookings for user_id={user_id}, user_role={user_role}")  # Debug log
+        
         if user_role == "client":
             bookings = self.db.query(Booking).filter(
                 Booking.client_id == user_id
@@ -926,6 +928,8 @@ class BookingService:
             bookings = self.db.query(Booking).filter(
                 Booking.trainer_id == user_id
             ).order_by(Booking.start_time.desc()).all()
+        
+        print(f"DEBUG: Found {len(bookings)} bookings")  # Debug log
         
         result = []
         for booking in bookings:

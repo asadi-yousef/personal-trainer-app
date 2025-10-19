@@ -70,8 +70,9 @@ export default function BookingRequestForm({ trainer, onSuccess, onCancel }: Boo
     end: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   });
 
-  // Calculate estimated cost
-  const estimatedCost = trainer.price_per_hour * (duration / 60);
+  // Calculate estimated cost (use per hour pricing)
+  const hourlyRate = trainer.price_per_hour || 0;
+  const estimatedCost = hourlyRate * (duration / 60);
 
   useEffect(() => {
     // Set default location address
@@ -208,7 +209,7 @@ export default function BookingRequestForm({ trainer, onSuccess, onCancel }: Boo
           <div className="flex-1">
             <h3 className="font-medium text-gray-900">{trainer.name}</h3>
             <p className="text-sm text-gray-600">{trainer.specialty}</p>
-            <p className="text-sm text-gray-600">${trainer.price_per_hour}/hour</p>
+            <p className="text-sm text-gray-600">${trainer.price_per_hour || trainer.price_per_session || 0}/hour</p>
           </div>
         </div>
       </div>
@@ -339,7 +340,7 @@ export default function BookingRequestForm({ trainer, onSuccess, onCancel }: Boo
                       <div className="font-medium text-gray-900">{formatted.date}</div>
                       <div className="text-sm text-gray-600">{formatted.time}</div>
                       <div className="text-xs text-gray-500 mt-1">
-                        {slot.duration_minutes} minutes • ${trainer.price_per_hour}/hour
+                        {slot.duration_minutes} minutes • ${trainer.price_per_hour || trainer.price_per_session || 0}/hour
                       </div>
                     </button>
                   );
@@ -384,7 +385,7 @@ export default function BookingRequestForm({ trainer, onSuccess, onCancel }: Boo
             <span className="text-lg font-semibold text-gray-900">${estimatedCost.toFixed(2)}</span>
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            Based on {duration} minutes at ${trainer.price_per_hour}/hour
+            Based on {duration} minutes at ${trainer.price_per_hour || trainer.price_per_session || 0}/hour
           </p>
         </div>
 

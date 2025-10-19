@@ -282,7 +282,7 @@ export default function SuggestedTimes() {
                         )}
                         {suggestion.trainer_price && (
                           <span className="ml-2 text-green-600 text-sm font-medium">
-                            ${suggestion.trainer_price}/session
+                            ${suggestion.trainer_price}/hour
                           </span>
                         )}
                       </div>

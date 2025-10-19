@@ -245,6 +245,7 @@ async def get_my_bookings(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Trainer profile not found"
             )
+        print(f"DEBUG: Trainer profile ID: {current_user.trainer_profile.id}")  # Debug log
         bookings = booking_service.get_bookings_for_user(
             user_id=current_user.trainer_profile.id,
             user_role=current_user.role.value

@@ -156,7 +156,7 @@ export default function PaymentForm({ booking, onSuccess, onCancel }: PaymentFor
           )}
           
           <div className="text-gray-600 text-lg">Total Amount:</div>
-          <div className="font-bold text-lg text-indigo-600">${booking.total_cost.toFixed(2)}</div>
+          <div className="font-bold text-lg text-indigo-600">${(booking.total_cost || 0).toFixed(2)}</div>
         </div>
       </div>
 

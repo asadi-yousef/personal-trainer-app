@@ -96,9 +96,15 @@ function TrainersPageContent() {
                 <i data-feather="zap" className="h-6 w-6 text-indigo-600"></i>
                 <h3 className="text-lg font-semibold text-indigo-900">Smart Scheduling Available</h3>
               </div>
-              <p className="text-indigo-700 text-sm">
+              <p className="text-indigo-700 text-sm mb-4">
                 Our AI-powered algorithm helps you find the optimal training times that work perfectly with your schedule and your trainer's availability.
               </p>
+              <button 
+                onClick={() => window.location.href = '/optimal-scheduling'}
+                className="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-smooth focus-ring"
+              >
+                Browse All Optimal Times
+              </button>
             </div>
           </div>
         </div>

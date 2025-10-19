@@ -1,18 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import Sidebar from '../../components/Sidebar';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/Cards/StatCard';
 import SessionItem from '../../components/Cards/SessionItem';
-import ProgramViewer from '../../components/Client/ProgramViewer';
-import MyBookings from '../../components/Client/MyBookings';
-import MessageItem from '../../components/Cards/MessageItem';
-import ChatInterface from '../../components/Messaging/ChatInterface';
-import SessionStatus from '../../components/Client/SessionStatus';
+import { lazy, Suspense } from 'react';
+
+// Lazy load heavy components
+const ProgramViewer = lazy(() => import('../../components/Client/ProgramViewer'));
+const MyBookings = lazy(() => import('../../components/Client/MyBookings'));
+const ChatInterface = lazy(() => import('../../components/Messaging/ChatInterface'));
+const SessionStatus = lazy(() => import('../../components/Client/SessionStatus'));
 import { mockStats, mockSessions, mockProgram, mockMessages } from '../../lib/data';
 import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
 import { apiClient, sessions, programs, messages, analytics, goals } from '../../lib/api';
+import '../../utils/preloader';
 
 /**
  * Client dashboard page with sidebar and main content
@@ -40,9 +43,13 @@ function ClientDashboardContent() {
         setLoading(true);
         setError(null);
 
-        // Fetch all dashboard data in parallel
-        const [sessionsData, programsData, messagesData, goalsData, analyticsData] = await Promise.allSettled([
-          sessions.getAll({ client_id: user.id, upcoming_only: true }),
+        // Fetch essential data first, then secondary data
+        const [sessionsData] = await Promise.allSettled([
+          sessions.getAll({ client_id: user.id, upcoming_only: true })
+        ]);
+
+        // Fetch secondary data after essential data loads
+        const [programsData, messagesData, goalsData, analyticsData] = await Promise.allSettled([
           programs.getMyPrograms(),
           messages.getAll({ receiver_id: user.id }),
           goals.getAll(),
@@ -226,10 +233,10 @@ function ClientDashboardContent() {
                 </p>
               </div>
               <button 
-                onClick={() => window.location.href = '/client/schedule'}
+                onClick={() => window.location.href = '/optimal-scheduling'}
                 className="mt-4 lg:mt-0 bg-white text-indigo-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-smooth focus-ring"
               >
-                Schedule New Session
+                Browse Optimal Times
               </button>
             </div>
           </div>
@@ -274,19 +281,23 @@ function ClientDashboardContent() {
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-semibold text-gray-900">Upcoming Sessions</h2>
                   <button 
-                    onClick={() => window.location.href = '/client/schedule'}
+                    onClick={() => window.location.href = '/optimal-scheduling'}
                     className="text-indigo-600 hover:text-indigo-700 text-sm font-medium focus-ring rounded-md p-1"
                   >
-                    Book Session
+                    Browse Times
                   </button>
                 </div>
-                <SessionStatus />
+                <Suspense fallback={<div className="h-32 bg-gray-100 rounded-lg animate-pulse"></div>}>
+                  <SessionStatus />
+                </Suspense>
               </div>
 
               {/* My Bookings */}
               <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="50">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">My Bookings</h2>
-                <MyBookings />
+                <Suspense fallback={<div className="h-48 bg-gray-100 rounded-lg animate-pulse"></div>}>
+                  <MyBookings />
+                </Suspense>
               </div>
 
               {/* Weight Progress */}
@@ -307,13 +318,17 @@ function ClientDashboardContent() {
               {/* Programs */}
               <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="200">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">My Programs</h2>
-                <ProgramViewer />
+                <Suspense fallback={<div className="h-64 bg-gray-100 rounded-lg animate-pulse"></div>}>
+                  <ProgramViewer />
+                </Suspense>
               </div>
 
               {/* Messages */}
               <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="300">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Messages</h2>
-                <ChatInterface />
+                <Suspense fallback={<div className="h-48 bg-gray-100 rounded-lg animate-pulse"></div>}>
+                  <ChatInterface />
+                </Suspense>
               </div>
             </div>
           </div>

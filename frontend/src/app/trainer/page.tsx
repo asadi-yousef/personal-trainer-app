@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo, lazy, Suspense } from 'react';
 import Sidebar from '../../components/Sidebar';
 import PageHeader from '../../components/PageHeader';
  
-import BookingRequestManager from '../../components/Trainer/BookingRequestManager';
-import AvailabilityManager from '../../components/Trainer/AvailabilityManager';
+// Lazy load heavy trainer components
+const BookingRequestManager = lazy(() => import('../../components/Trainer/BookingRequestManager'));
+const AvailabilityManager = lazy(() => import('../../components/Trainer/AvailabilityManager'));
 import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
 import ProfileCompletionCheck from '../../components/Trainer/ProfileCompletionCheck';
 
@@ -139,7 +140,9 @@ function TrainerDashboardContent() {
               {/* Booking Requests - Essential for trainers */}
               <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Booking Requests</h2>
-                <BookingRequestManager />
+                <Suspense fallback={<div className="h-64 bg-gray-100 rounded-lg animate-pulse"></div>}>
+                  <BookingRequestManager />
+                </Suspense>
               </div>
 
             </div>

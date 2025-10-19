@@ -554,7 +554,7 @@ class SchedulingService:
                     slot['trainer_name'] = trainer.user.full_name
                     slot['trainer_specialty'] = trainer.specialty
                     slot['trainer_rating'] = trainer.rating
-                    slot['trainer_price'] = trainer.price_per_session
+                    slot['trainer_price'] = trainer.price_per_hour if trainer.price_per_hour > 0 else trainer.price_per_session
                 
                 all_slots.extend(trainer_slots)
                 trainer_slot_map[trainer.id] = trainer_slots
@@ -648,7 +648,7 @@ class SchedulingService:
                     'trainer_name': trainer.user.full_name,
                     'trainer_specialty': trainer.specialty,
                     'trainer_rating': trainer.rating,
-                    'trainer_price': trainer.price_per_session,
+                    'trainer_price': trainer.price_per_hour if trainer.price_per_hour > 0 else trainer.price_per_session,
                     'slot': slot,
                     'optimization_score': optimization_score,
                     'combined_score': slot['score'] + optimization_score

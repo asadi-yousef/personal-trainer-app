@@ -104,12 +104,22 @@ async def create_payment(
             detail="Card has expired"
         )
     
-    # Get amount from booking
-    amount = booking.total_cost or booking.price_per_hour or 0.0
-    if amount <= 0:
+    # Get amount from booking - calculate if not set
+    amount = booking.total_cost
+    if not amount or amount <= 0:
+        # Calculate amount from trainer's pricing
+        trainer = db.query(Trainer).filter(Trainer.id == booking.trainer_id).first()
+        if trainer:
+            hours = booking.duration_minutes / 60
+            amount = trainer.price_per_hour * hours if trainer.price_per_hour > 0 else trainer.price_per_session
+            # Update the booking with calculated amount
+            booking.total_cost = amount
+            db.commit()
+    
+    if not amount or amount <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid booking amount"
+            detail="Invalid booking amount - unable to calculate cost"
         )
     
     # Simulate payment processing

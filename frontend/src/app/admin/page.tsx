@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo, lazy, Suspense } from 'react';
 import Sidebar from '../../components/Sidebar';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/Cards/StatCard';
-import UserTable from '../../components/Admin/UserTable';
-import AnalyticsChart from '../../components/Admin/AnalyticsChart';
-import RecentActivity from '../../components/Admin/RecentActivity';
+// Lazy load heavy admin components
+const UserTable = lazy(() => import('../../components/Admin/UserTable'));
+const AnalyticsChart = lazy(() => import('../../components/Admin/AnalyticsChart'));
+const RecentActivity = lazy(() => import('../../components/Admin/RecentActivity'));
 import { mockAdminStats, mockUsers } from '../../lib/data';
 import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
 import { apiClient, analytics, trainers } from '../../lib/api';
@@ -35,9 +36,13 @@ function AdminDashboardContent() {
         setLoading(true);
         setError(null);
 
-        // Fetch all dashboard data in parallel
-        const [analyticsData, trainersData] = await Promise.allSettled([
-          analytics.getOverview(),
+        // Fetch essential data first
+        const [analyticsData] = await Promise.allSettled([
+          analytics.getOverview()
+        ]);
+
+        // Fetch secondary data after essential data loads
+        const [trainersData] = await Promise.allSettled([
           trainers.getAll()
         ]);
 
@@ -208,12 +213,16 @@ function AdminDashboardContent() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
             {/* Analytics Chart */}
             <div className="lg:col-span-2" data-aos="fade-up">
-              <AnalyticsChart />
+              <Suspense fallback={<div className="h-64 bg-gray-100 rounded-lg animate-pulse"></div>}>
+                <AnalyticsChart />
+              </Suspense>
             </div>
 
             {/* Recent Activity */}
             <div data-aos="fade-up" data-aos-delay="100">
-              <RecentActivity />
+              <Suspense fallback={<div className="h-64 bg-gray-100 rounded-lg animate-pulse"></div>}>
+                <RecentActivity />
+              </Suspense>
             </div>
           </div>
 
@@ -230,7 +239,9 @@ function AdminDashboardContent() {
                 </button>
               </div>
             </div>
-            <UserTable users={dashboardData.users} />
+            <Suspense fallback={<div className="h-96 bg-gray-100 rounded-lg animate-pulse"></div>}>
+              <UserTable users={dashboardData.users} />
+            </Suspense>
           </div>
 
           {/* Platform Status */}

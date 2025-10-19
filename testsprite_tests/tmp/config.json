@@ -1,0 +1,19 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000",
+  "loginUser": "assdiyousef@gmail.com",
+  "loginPassword": "12345678",
+  "timeout": 20000,
+  "executionArgs": {
+    "projectName": "personal-trainer-app",
+    "projectPath": "C:\\Users\\יוסף אסדי\\personal-trainer-app",
+    "testIds": [],
+    "additionalInstruction": "Test the complete FitConnect personal trainer platform including: 1) Authentication flow with all user roles (client, trainer, admin), 2) Three-tier booking system (direct booking, booking requests, smart scheduling), 3) Payment processing with simulated transactions, 4) Session management and completion, 5) Messaging system between users, 6) Trainer profile management and availability, 7) Workout program creation and assignment, 8) Analytics dashboard functionality, 9) Admin panel features, 10) Responsive UI testing across different screen sizes. Focus on end-to-end user journeys and cross-browser compatibility. IMPORTANT: The application has slow navigation and dashboard loading times (5-10 seconds). Please increase timeout settings to 15-20 seconds for all page navigation and element interactions to accommodate the slow loading times.",
+    "envs": {
+      "API_KEY": "sk-user-4qBD25jYcUR-yCwzhqjqPXG8Y7j1aHRioSaKdj7bJdGbh3WKEcFwutHd8HmPVoIMirBaGhrMrm5CdxPCjYTXz6q6X39VkgxQXA1XwzFJ3YOVb8HQgqQze2nfxWt1h8bJBf0"
+    }
+  },
+  "proxy": "http://743ff559-71f3-4167-9fea-58a989174181:dfBR38xtRseepkO5HZTjT8aaYdTYppsq@tun.testsprite.com:8080"
+}

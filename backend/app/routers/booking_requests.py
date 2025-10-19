@@ -227,25 +227,25 @@ async def approve_booking_request(
     request.rejection_reason = approval.rejection_reason
     
     if approval.status == BookingRequestStatus.APPROVED:
-        if not approval.confirmed_date:
+        # For booking requests, use the client's preferred times directly
+        # Trainer can only approve/reject, not change times
+        if request.preferred_start_date:
+            # Use client's preferred start time
+            start_time = request.preferred_start_date
+            end_time = start_time + timedelta(minutes=request.duration_minutes)
+            request.confirmed_date = start_time
+        else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Confirmed date is required for approval"
+                detail="Client preferred times are required for approval"
             )
-        
-        request.confirmed_date = approval.confirmed_date
-        request.alternative_dates_list = approval.alternative_dates
         
         # Calculate the price
         trainer = db.query(Trainer).filter(Trainer.id == request.trainer_id).first()
         hours = request.duration_minutes / 60
         calculated_price = trainer.price_per_hour * hours if trainer.price_per_hour > 0 else trainer.price_per_session
         
-        # Calculate start and end times
-        start_time = approval.confirmed_date
-        end_time = start_time + timedelta(minutes=request.duration_minutes)
-        
-        # Create a confirmed booking
+        # Create a confirmed booking using client's preferred times
         booking = Booking(
             client_id=request.client_id,
             trainer_id=request.trainer_id,
@@ -256,9 +256,9 @@ async def approve_booking_request(
             preferred_start_date=request.preferred_start_date,
             preferred_end_date=request.preferred_end_date,
             preferred_times=request.preferred_times,
-            confirmed_date=approval.confirmed_date,
-            start_time=start_time,
-            end_time=end_time,
+            confirmed_date=request.confirmed_date,  # Use the confirmed date (client's preferred time)
+            start_time=start_time,  # Client's preferred start time
+            end_time=end_time,      # Calculated end time based on client's preferred start
             total_cost=calculated_price,
             price_per_hour=trainer.price_per_hour,
             training_type=request.training_type or request.session_type,
@@ -268,11 +268,16 @@ async def approve_booking_request(
             recurring_pattern=request.recurring_pattern
         )
         
+        # Also update the booking request with the calculated price
+        request.total_cost = calculated_price
+        
         db.add(booking)
         db.commit()
         db.refresh(booking)
         
-        # Create corresponding Session
+        print(f"DEBUG: Created booking with ID {booking.id} for trainer {request.trainer_id}")  # Debug log
+        
+        # Create corresponding Session using client's preferred times
         from app.models import Session as SessionModel, SessionStatus
         session = SessionModel(
             client_id=request.client_id,
@@ -280,7 +285,7 @@ async def approve_booking_request(
             booking_id=booking.id,
             title=f"{request.session_type} Session",
             session_type=request.session_type,
-            scheduled_date=approval.confirmed_date,
+            scheduled_date=start_time,  # Use client's preferred start time
             duration_minutes=request.duration_minutes,
             location=request.location,
             notes=request.special_requests,
@@ -291,8 +296,8 @@ async def approve_booking_request(
         db.commit()
         
         # Mark corresponding time slot as booked if it exists
-        if approval.confirmed_date:
-            # Find time slots that overlap with this booking
+        if start_time:
+            # Find time slots that overlap with this booking (using client's preferred times)
             time_slots = db.query(TimeSlot).filter(
                 TimeSlot.trainer_id == request.trainer_id,
                 TimeSlot.start_time >= start_time,
@@ -320,13 +325,14 @@ async def approve_booking_request(
     # Send email notification to client if approved
     if approval.status == BookingRequestStatus.APPROVED:
         try:
-            confirmed_time_str = approval.confirmed_date.strftime("%H:%M") if approval.confirmed_date else "Not specified"
+            # Use client's preferred time for confirmation email
+            confirmed_time_str = request.confirmed_date.strftime("%H:%M") if request.confirmed_date else "Not specified"
             await email_service.send_booking_confirmation(
                 client_email=request.client.email,
                 client_name=request.client.full_name,
                 trainer_name=request.trainer.user.full_name,
                 session_type=request.session_type,
-                confirmed_date=approval.confirmed_date.isoformat(),
+                confirmed_date=request.confirmed_date.isoformat(),
                 confirmed_time=confirmed_time_str,
                 duration_minutes=request.duration_minutes,
                 location=request.location or "Not specified"
