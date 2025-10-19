@@ -38,8 +38,19 @@ export default function ClientTrainerChatPage() {
       try {
         setLoading(true);
         setError(null);
-        const trainerData = await trainers.getById(trainerId);
-        setTrainer(trainerData);
+        
+        // The trainerId in the URL is actually a user ID from the messaging system
+        // We need to find the trainer profile for this user ID
+        const allTrainers = await trainers.getAll();
+        const trainerData = allTrainers.trainers.find((t: any) => t.user_id === trainerId);
+        
+        if (trainerData) {
+          setTrainer(trainerData);
+        } else {
+          // If not found in trainer list, try direct API call as fallback
+          const directTrainerData = await trainers.getById(trainerId);
+          setTrainer(directTrainerData);
+        }
       } catch (err) {
         console.error('Failed to fetch trainer:', err);
         setError('Failed to load trainer details');
@@ -177,8 +188,8 @@ export default function ClientTrainerChatPage() {
           {/* Chat Window */}
           <div className="h-[600px]" data-aos="fade-up" data-aos-delay="100">
             <ChatWindow
-              key={`client-${trainer.id}`}
-              otherUserId={trainer.id}
+              key={`client-${trainerId}`}
+              otherUserId={trainerId}
               otherUserName={trainer.user_name}
               otherUserAvatar={trainer.user_avatar}
               otherUserRole="trainer"

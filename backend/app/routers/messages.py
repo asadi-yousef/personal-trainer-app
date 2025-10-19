@@ -37,7 +37,7 @@ def get_or_create_conversation(db: Session, user1_id: int, user2_id: int) -> Con
             and_(Conversation.participant1_id == user1_id, Conversation.participant2_id == user2_id),
             and_(Conversation.participant1_id == user2_id, Conversation.participant2_id == user1_id)
         ),
-        Conversation.status == "active"
+        or_(Conversation.status == "active", Conversation.status == "ACTIVE")
     ).first()
     
     if not conversation:
@@ -298,6 +298,8 @@ async def get_conversations(
 ):
     """Get conversations for the current user"""
     
+    print(f"DEBUG: get_conversations called for user {current_user.id}")
+    
     query = db.query(Conversation).filter(
         or_(Conversation.participant1_id == current_user.id, Conversation.participant2_id == current_user.id)
     )
@@ -310,7 +312,10 @@ async def get_conversations(
     
     conversations = query.order_by(desc(Conversation.last_message_at)).offset(skip).limit(limit).all()
     
-    # Add related data and calculate unread count
+    print(f"DEBUG: Found {len(conversations)} conversations for user {current_user.id}")
+    
+    # Build response objects
+    result = []
     for conversation in conversations:
         # Determine the other participant
         if conversation.participant1_id == current_user.id:
@@ -318,24 +323,38 @@ async def get_conversations(
         else:
             other_participant = conversation.participant1
         
-        conversation.participant1_name = conversation.participant1.full_name
-        conversation.participant1_avatar = conversation.participant1.avatar
-        conversation.participant2_name = conversation.participant2.full_name
-        conversation.participant2_avatar = conversation.participant2.avatar
-        
         # Calculate unread messages count
         unread_count = db.query(Message).filter(
             Message.conversation_id == conversation.id,
             Message.receiver_id == current_user.id,
             Message.is_read == False
         ).count()
-        conversation.unread_count = unread_count
+        
+        # Create response object
+        conversation_data = {
+            "id": conversation.id,
+            "participant1_id": conversation.participant1_id,
+            "participant2_id": conversation.participant2_id,
+            "last_message_id": None,
+            "last_message_at": conversation.last_message_at,
+            "status": conversation.status,
+            "created_at": conversation.created_at,
+            "updated_at": conversation.updated_at,
+            "participant1_name": conversation.participant1.full_name if conversation.participant1 else None,
+            "participant1_avatar": conversation.participant1.avatar if conversation.participant1 else None,
+            "participant2_name": conversation.participant2.full_name if conversation.participant2 else None,
+            "participant2_avatar": conversation.participant2.avatar if conversation.participant2 else None,
+            "last_message": None,
+            "unread_count": unread_count
+        }
+        result.append(conversation_data)
     
     # Filter by has_unread after calculating unread counts
     if has_unread is not None:
-        conversations = [c for c in conversations if (c.unread_count > 0) == has_unread]
+        result = [c for c in result if (c["unread_count"] > 0) == has_unread]
     
-    return conversations
+    print(f"DEBUG: Returning {len(result)} conversations")
+    return result
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=List[MessageResponse])
@@ -362,27 +381,40 @@ async def get_conversation_messages(
             detail="Not authorized to view this conversation"
         )
     
-    # Get messages
-    messages = db.query(Message).filter(
+    # Get messages with joinedload to avoid N+1 queries
+    from sqlalchemy.orm import joinedload
+    messages = db.query(Message).options(
+        joinedload(Message.sender),
+        joinedload(Message.receiver)
+    ).filter(
         Message.conversation_id == conversation_id
-    ).order_by(desc(Message.created_at)).offset(skip).limit(limit).all()
+    ).order_by(Message.created_at).all()
     
-    # Add related data
+    # Mark messages as read and build response
+    result = []
     for message in messages:
-        message.sender_name = message.sender.full_name
-        message.sender_avatar = message.sender.avatar
-        message.receiver_name = message.receiver.full_name
-        message.receiver_avatar = message.receiver.avatar
-        message.attachments = json.loads(message.attachments) if message.attachments else []
-        
         # Mark as read if current user is the receiver
         if current_user.id == message.receiver_id and not message.is_read:
             message.is_read = True
             message.read_at = datetime.utcnow()
             message.status = "read"
+        
+        result.append({
+            "id": message.id,
+            "sender_id": message.sender_id,
+            "receiver_id": message.receiver_id,
+            "content": message.content,
+            "created_at": message.created_at,
+            "read_at": message.read_at,
+            "is_read": message.is_read,
+            "sender_name": message.sender.full_name,
+            "sender_avatar": message.sender.avatar,
+            "receiver_name": message.receiver.full_name,
+            "receiver_avatar": message.receiver.avatar
+        })
     
     db.commit()
-    return messages
+    return result
 
 
 # Message Templates
@@ -676,7 +708,7 @@ async def get_user_conversations(
     # Get conversations where user is a participant
     conversations = db.query(Conversation).filter(
         or_(Conversation.participant1_id == user_id, Conversation.participant2_id == user_id),
-        Conversation.status == "active"
+        or_(Conversation.status == "active", Conversation.status == "ACTIVE")
     ).order_by(desc(Conversation.last_message_at)).all()
     
     result = []
@@ -728,12 +760,17 @@ async def get_conversation_history(
 ):
     """Get complete message history between two users (matches MVP requirement)"""
     
+    print(f"DEBUG: get_conversation_history called with user_a_id={user_a_id}, user_b_id={user_b_id}, current_user.id={current_user.id}")
+    
     # Ensure current user is one of the participants
     if current_user.id not in [user_a_id, user_b_id]:
+        print(f"DEBUG: Access denied - current user {current_user.id} not in [{user_a_id}, {user_b_id}]")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Can only access conversations you are part of"
         )
+    
+    print(f"DEBUG: Access granted for user {current_user.id}")
     
     # Find conversation between the two users
     conversation = db.query(Conversation).filter(
@@ -741,16 +778,25 @@ async def get_conversation_history(
             and_(Conversation.participant1_id == user_a_id, Conversation.participant2_id == user_b_id),
             and_(Conversation.participant1_id == user_b_id, Conversation.participant2_id == user_a_id)
         ),
-        Conversation.status == "active"
+        or_(Conversation.status == "active", Conversation.status == "ACTIVE")
     ).first()
     
+    print(f"DEBUG: Found conversation: {conversation}")
+    
     if not conversation:
+        print(f"DEBUG: No conversation found between users {user_a_id} and {user_b_id}")
         return []
     
     # Get all messages in the conversation, ordered by timestamp
-    messages = db.query(Message).filter(
+    from sqlalchemy.orm import joinedload
+    messages = db.query(Message).options(
+        joinedload(Message.sender),
+        joinedload(Message.receiver)
+    ).filter(
         Message.conversation_id == conversation.id
     ).order_by(Message.created_at).all()
+    
+    print(f"DEBUG: Found {len(messages)} messages in conversation {conversation.id}")
     
     result = []
     for message in messages:
@@ -775,6 +821,7 @@ async def get_conversation_history(
         })
     
     db.commit()
+    print(f"DEBUG: Returning {len(result)} messages")
     return result
 
 
@@ -805,7 +852,7 @@ async def mark_conversation_read(
             and_(Conversation.participant1_id == sender_id, Conversation.participant2_id == recipient_id),
             and_(Conversation.participant1_id == recipient_id, Conversation.participant2_id == sender_id)
         ),
-        Conversation.status == "active"
+        or_(Conversation.status == "active", Conversation.status == "ACTIVE")
     ).first()
     
     if not conversation:

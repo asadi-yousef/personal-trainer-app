@@ -44,7 +44,7 @@ export default function TrainerMessagesPage() {
       try {
         setLoading(true);
         setError(null);
-        const conversationsData = await messages.getUserConversations(user.id);
+        const conversationsData = await messages.getConversations();
         // Sort by most recent activity (unread messages first, then by last message time)
         const sortedConversations = (conversationsData || []).sort((a, b) => {
           // Prioritize conversations with unread messages
@@ -248,63 +248,62 @@ export default function TrainerMessagesPage() {
                   </button>
                 </div>
               ) : (
-                conversations.map((conversation, index) => (
-                  <div
-                    key={conversation.conversation_id}
-                    onClick={() => handleConversationClick(conversation.other_user.id)}
-                    className={`p-6 hover:bg-gray-50 cursor-pointer transition-colors ${
-                      conversation.unread_count > 0 ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                    }`}
-                    data-aos="fade-up"
-                    data-aos-delay={index * 100}
-                  >
-                    <div className="flex items-center space-x-4">
-                      {/* Avatar */}
-                      <div className="relative">
-                        <img
-                          src={conversation.other_user.avatar || 'https://i.pravatar.cc/200'}
-                          alt={conversation.other_user.name}
-                          className="w-12 h-12 rounded-full"
-                        />
-                        {conversation.unread_count > 0 && (
-                          <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                            {conversation.unread_count}
-                          </div>
-                        )}
-                      </div>
+                conversations.map((conversation, index) => {
+                  // Determine the other participant
+                  const isParticipant1 = user?.id === conversation.participant1_id;
+                  const otherUser = isParticipant1 ? {
+                    id: conversation.participant2_id,
+                    name: conversation.participant2_name,
+                    avatar: conversation.participant2_avatar
+                  } : {
+                    id: conversation.participant1_id,
+                    name: conversation.participant1_name,
+                    avatar: conversation.participant1_avatar
+                  };
 
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <h3 className={`text-lg font-medium truncate ${
-                            conversation.unread_count > 0 ? 'text-gray-900' : 'text-gray-700'
-                          }`}>
-                            {conversation.other_user.name}
-                          </h3>
+                  return (
+                    <div
+                      key={conversation.id}
+                      onClick={() => handleConversationClick(otherUser.id)}
+                      className={`p-6 hover:bg-gray-50 cursor-pointer transition-colors ${
+                        conversation.unread_count > 0 ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                      }`}
+                      data-aos="fade-up"
+                      data-aos-delay={index * 100}
+                    >
+                      <div className="flex items-center space-x-4">
+                        {/* Avatar */}
+                        <div className="relative">
+                          <img
+                            src={otherUser.avatar || 'https://i.pravatar.cc/200'}
+                            alt={otherUser.name || 'Unknown User'}
+                            className="w-12 h-12 rounded-full"
+                          />
+                          {conversation.unread_count > 0 && (
+                            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                              {conversation.unread_count}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <h3 className={`text-lg font-medium truncate ${
+                              conversation.unread_count > 0 ? 'text-gray-900' : 'text-gray-700'
+                            }`}>
+                              {otherUser.name || 'Unknown User'}
+                            </h3>
                           <div className="flex items-center space-x-2">
                             {conversation.last_message_at && (
                               <span className="text-sm text-gray-500">
                                 {formatTime(conversation.last_message_at)}
                               </span>
                             )}
-                            {conversation.other_user.role === 'client' && (
-                              <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
-                                Client
-                              </span>
-                            )}
                           </div>
                         </div>
                         
-                        {conversation.last_message ? (
-                          <p className={`text-sm mt-1 truncate ${
-                            conversation.unread_count > 0 ? 'font-medium text-gray-900' : 'text-gray-600'
-                          }`}>
-                            {conversation.last_message.sender_id === user?.id ? 'You: ' : ''}
-                            {conversation.last_message.content}
-                          </p>
-                        ) : (
-                          <p className="text-sm text-gray-500 mt-1">No messages yet</p>
-                        )}
+                        <p className="text-sm text-gray-500 mt-1">Click to view conversation</p>
                       </div>
 
                       {/* Arrow */}
@@ -313,7 +312,8 @@ export default function TrainerMessagesPage() {
                       </div>
                     </div>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

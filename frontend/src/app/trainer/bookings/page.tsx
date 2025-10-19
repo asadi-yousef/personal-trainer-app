@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Sidebar from '../../../components/Sidebar';
 import PageHeader from '../../../components/PageHeader';
 import { ProtectedRoute, useAuth } from '../../../contexts/AuthContext';
-import { apiClient } from '../../../lib/api';
+import { apiClient, bookingManagement } from '../../../lib/api';
 
 interface Booking {
   id: number;
@@ -69,28 +69,34 @@ function TrainerBookingsContent() {
 
     try {
       setLoading(true);
-      // Get trainer's ID
-      const trainerId = (user as any)?.trainer_id || user.id;
       
-      // Fetch confirmed bookings
-      const response = await apiClient.get<Booking[]>(`/bookings?trainer_id=${trainerId}&status=confirmed`);
+      // Use the correct booking management API
+      const response = await bookingManagement.getMyBookings();
       console.log('Fetched bookings:', response);
       
-      // Deduplicate bookings by client + time combination (keep the one with higher ID/newer)
-      const uniqueBookings = response ? Array.from(
-        new Map(
-          response
-            .sort((a, b) => b.id - a.id) // Sort by ID descending (keep newer ones)
-            .map(booking => {
-              const key = `${booking.client_id}_${booking.confirmed_date}`;
-              return [key, booking];
-            })
-        ).values()
-      ) : [];
+      // Extract bookings from the response
+      const bookingsData = response?.bookings || [];
       
-      console.log('Unique bookings after deduplication:', uniqueBookings);
-      console.log('Removed duplicates:', (response?.length || 0) - uniqueBookings.length);
-      setBookings(uniqueBookings);
+      // Filter for confirmed bookings only
+      const confirmedBookings = bookingsData.filter((booking: any) => 
+        booking.status.toLowerCase() === 'confirmed'
+      );
+      
+      // Transform to match the expected format
+      const transformedBookings: Booking[] = confirmedBookings.map((booking: any) => ({
+        id: booking.id,
+        client_id: booking.client_id || 0,
+        trainer_id: booking.trainer_id || 0,
+        session_type: booking.session_type,
+        duration_minutes: booking.duration_minutes,
+        location: booking.location,
+        status: booking.status,
+        confirmed_date: booking.start_time || booking.confirmed_date,
+        client_name: booking.other_party_name
+      }));
+      
+      console.log('Transformed confirmed bookings:', transformedBookings);
+      setBookings(transformedBookings);
     } catch (error) {
       console.error('Error fetching bookings:', error);
     } finally {

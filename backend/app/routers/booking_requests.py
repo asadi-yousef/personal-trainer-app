@@ -245,6 +245,11 @@ async def approve_booking_request(
         hours = request.duration_minutes / 60
         calculated_price = trainer.price_per_hour * hours if trainer.price_per_hour > 0 else trainer.price_per_session
         
+        print(f"DEBUG: Price calculation for booking request {request.id}")
+        print(f"DEBUG: Trainer {trainer.id} - price_per_hour: {trainer.price_per_hour}, price_per_session: {trainer.price_per_session}")
+        print(f"DEBUG: Duration: {request.duration_minutes} minutes ({hours} hours)")
+        print(f"DEBUG: Calculated price: {calculated_price}")
+        
         # Create a confirmed booking using client's preferred times
         booking = Booking(
             client_id=request.client_id,
@@ -275,7 +280,8 @@ async def approve_booking_request(
         db.commit()
         db.refresh(booking)
         
-        print(f"DEBUG: Created booking with ID {booking.id} for trainer {request.trainer_id}")  # Debug log
+        print(f"DEBUG: Created booking with ID {booking.id} for trainer {request.trainer_id}")
+        print(f"DEBUG: Booking total_cost set to: {booking.total_cost}")
         
         # Create corresponding Session using client's preferred times
         from app.models import Session as SessionModel, SessionStatus

@@ -9,6 +9,7 @@ const BookingRequestManager = lazy(() => import('../../components/Trainer/Bookin
 const AvailabilityManager = lazy(() => import('../../components/Trainer/AvailabilityManager'));
 import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
 import ProfileCompletionCheck from '../../components/Trainer/ProfileCompletionCheck';
+import { bookingManagement } from '../../lib/api';
 
 /**
  * Trainer dashboard page with sidebar and main content
@@ -18,6 +19,7 @@ function TrainerDashboardContent() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
   const [dashboardData, setDashboardData] = useState({
     stats: [
       {
@@ -99,7 +101,32 @@ function TrainerDashboardContent() {
     }
   }, [sidebarCollapsed, mounted]);
 
-  const upcomingBookings: any[] = [];
+  const fetchUpcomingBookings = async () => {
+    try {
+      const response = await bookingManagement.getMyBookings();
+      const bookingsData = response?.bookings || [];
+      
+      // Filter for confirmed bookings and format for display
+      const upcoming = bookingsData
+        .filter((booking: any) => booking.status.toLowerCase() === 'confirmed')
+        .slice(0, 3) // Show only next 3
+        .map((booking: any) => ({
+          id: booking.id,
+          clientName: booking.other_party_name || 'Unknown Client',
+          sessionType: booking.session_type,
+          datetime: booking.start_time ? new Date(booking.start_time).toLocaleString() : 'TBD',
+          duration: booking.duration_minutes
+        }));
+      
+      setUpcomingBookings(upcoming);
+    } catch (error) {
+      console.error('Error fetching upcoming bookings:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchUpcomingBookings();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">

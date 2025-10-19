@@ -110,7 +110,11 @@ class ApiClient {
       } catch (parseError) {
         error = { detail: `HTTP ${response.status}: ${response.statusText}` };
       }
-      console.log('API Error Response:', { status: response.status, error, url });
+      console.log('API Error Response:', { 
+        status: response.status, 
+        error: JSON.stringify(error, null, 2), 
+        url 
+      });
       
       // Better error message extraction
       const errorMessage = typeof error.detail === 'string' 

@@ -53,7 +53,7 @@ export default function ChatInterface() {
       
       try {
         setLoading(true);
-        const conversationsData = await messages.getUserConversations(user.id);
+        const conversationsData = await messages.getConversations();
         setConversations(conversationsData || []);
       } catch (error) {
         console.error('Failed to fetch conversations:', error);
