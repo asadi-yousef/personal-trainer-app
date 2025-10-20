@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import ChatWidget from "../components/ChatWidget";
 import ClientWrapper from "../components/ClientWrapper";
 import { AuthProvider } from "../contexts/AuthContext";
 // import "../utils/featherFix.js"; // Disabled to prevent DOM errors
@@ -32,6 +33,7 @@ export default function RootLayout({
               {children}
             </main>
             <Footer />
+            <ChatWidget />
           </ClientWrapper>
         </AuthProvider>
       </body>
