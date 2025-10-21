@@ -1,7 +1,7 @@
 """
 Pydantic schemas for trainer registration completion
 """
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, model_validator
 from typing import List, Optional
 from datetime import datetime
 from app.models import TrainingType, ProfileCompletionStatus, LocationType
@@ -51,12 +51,14 @@ class ProfileCompletionRequest(BaseModel):
         le=200.0,
         description="Price per hour"
     )
-    gym_name: str = Field(..., min_length=2, max_length=255)
-    gym_address: str = Field(..., min_length=10)
-    gym_city: str = Field(..., min_length=2, max_length=100)
-    gym_state: str = Field(..., min_length=2, max_length=50)
-    gym_zip_code: str = Field(..., min_length=5, max_length=20)
+    # Gym fields are optional - only required when location_preference is 'specific_gym'
+    gym_name: Optional[str] = Field(None, min_length=2, max_length=255)
+    gym_address: Optional[str] = Field(None, min_length=10)
+    gym_city: Optional[str] = Field(None, min_length=2, max_length=100)
+    gym_state: Optional[str] = Field(None, min_length=2, max_length=50)
+    gym_zip_code: Optional[str] = Field(None, min_length=5, max_length=20)
     gym_phone: Optional[str] = Field(None, max_length=20)
+    location_preference: str = Field(default='specific_gym', description="Location preference: 'specific_gym' or 'customer_choice'")
     bio: str = Field(..., min_length=100, description="Bio must be at least 100 characters")
 
     @validator('training_types')
@@ -72,6 +74,28 @@ class ProfileCompletionRequest(BaseModel):
         if len(v.strip()) < 100:
             raise ValueError('Bio must be at least 100 characters long')
         return v.strip()
+    
+    @model_validator(mode='after')
+    def validate_gym_fields_conditional(self):
+        """Validate gym fields are provided when location_preference is 'specific_gym'"""
+        if self.location_preference == 'specific_gym':
+            required_gym_fields = [
+                ('gym_name', self.gym_name),
+                ('gym_address', self.gym_address),
+                ('gym_city', self.gym_city),
+                ('gym_state', self.gym_state),
+                ('gym_zip_code', self.gym_zip_code)
+            ]
+            missing_fields = []
+            
+            for field_name, value in required_gym_fields:
+                if not value or (isinstance(value, str) and len(value.strip()) == 0):
+                    missing_fields.append(field_name.replace('gym_', '').replace('_', ' ').title())
+            
+            if missing_fields:
+                raise ValueError(f'Gym information is required when location preference is "specific gym". Missing: {", ".join(missing_fields)}')
+        
+        return self
 
 
 class ProfileCompletionResponse(BaseModel):
@@ -190,6 +214,7 @@ class TimeSlotRequest(BaseModel):
         if v not in [60, 90, 120]:  # 1h, 1.5h, 2h
             raise ValueError('Duration must be 60, 90, or 120 minutes')
         return v
+
 
 
 

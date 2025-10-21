@@ -10,7 +10,7 @@ from app.models import Specialty, Availability
 class TrainerBase(BaseModel):
     """Base trainer schema"""
     specialty: Specialty
-    price_per_session: float
+    price_per_session: Optional[float] = 50.0  # Default for backward compatibility
     bio: Optional[str] = None
     cover_image: Optional[str] = None
     experience_years: int = 0

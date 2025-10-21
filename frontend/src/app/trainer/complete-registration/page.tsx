@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDOMErrorHandler } from '@/utils/domErrorHandler';
-import { apiClient } from '@/lib/api';
+import { apiClient, trainerRegistration } from '@/lib/api';
 
 interface TrainingType {
   value: string;
@@ -38,20 +38,20 @@ interface RegistrationProgress {
 }
 
 const TRAINING_TYPES: TrainingType[] = [
-  { value: 'Strength Training', label: 'Strength Training', description: 'Weight lifting, resistance training' },
+  { value: 'Calisthenics', label: 'Calisthenics', description: 'Bodyweight exercises and movements' },
+  { value: 'Gym Weights', label: 'Gym Weights', description: 'Traditional gym equipment training' },
   { value: 'Cardio', label: 'Cardio', description: 'Running, cycling, HIIT workouts' },
   { value: 'Yoga', label: 'Yoga', description: 'Hatha, Vinyasa, Power yoga' },
   { value: 'Pilates', label: 'Pilates', description: 'Core strengthening, flexibility' },
-  { value: 'Calisthenics', label: 'Calisthenics', description: 'Bodyweight exercises' },
   { value: 'CrossFit', label: 'CrossFit', description: 'High-intensity functional training' },
   { value: 'Functional Training', label: 'Functional Training', description: 'Movement patterns, daily activities' },
+  { value: 'Strength Training', label: 'Strength Training', description: 'Weight lifting, resistance training' },
   { value: 'Endurance Training', label: 'Endurance Training', description: 'Long-duration fitness training' },
   { value: 'Flexibility Training', label: 'Flexibility Training', description: 'Stretching, mobility work' },
   { value: 'Sports Specific', label: 'Sports Specific', description: 'Sport-specific conditioning' },
   { value: 'Rehabilitation', label: 'Rehabilitation', description: 'Injury recovery, physical therapy' },
   { value: 'Nutrition Coaching', label: 'Nutrition Coaching', description: 'Diet planning, nutrition guidance' },
-  { value: 'Mental Health Coaching', label: 'Mental Health Coaching', description: 'Mental wellness, motivation' },
-  { value: 'Gym Weights', label: 'Gym Weights', description: 'Traditional gym equipment training' }
+  { value: 'Mental Health Coaching', label: 'Mental Health Coaching', description: 'Mental wellness, motivation' }
 ];
 
 export default function CompleteRegistrationPage() {
@@ -68,7 +68,8 @@ export default function CompleteRegistrationPage() {
   // Form data
   const [formData, setFormData] = useState({
     training_types: [] as string[],
-    price_per_hour: '',
+    price_per_hour: '50',  // Default to $50/hour
+    location_preference: 'specific_gym',  // Default to specific gym
     gym_name: '',
     gym_address: '',
     gym_city: '',
@@ -120,43 +121,12 @@ export default function CompleteRegistrationPage() {
         throw new Error('No authentication token available');
       }
       
-      const statusUrl = `http://localhost:8000/api/trainer-registration/profile-status?t=${Date.now()}`;
-      const progressUrl = `http://localhost:8000/api/trainer-registration/progress?t=${Date.now()}`;
+      console.log('Fetching profile status and progress using API client...');
       
-      console.log('Making requests to:', { statusUrl, progressUrl });
-      
-      // Make requests with explicit token and better error handling
-      const [statusResponse, progressResponse] = await Promise.all([
-        fetch(statusUrl, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        fetch(progressUrl, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-      ]);
-      
-      console.log('Response status codes:', { 
-        status: statusResponse.status, 
-        progress: progressResponse.status 
-      });
-
-      // Check if responses are OK and have JSON content
-      if (!statusResponse.ok) {
-        const errorText = await statusResponse.text();
-        console.error('Status endpoint error:', statusResponse.status, errorText);
-        throw new Error(`Profile status request failed: ${statusResponse.status}`);
-      }
-
-      if (!progressResponse.ok) {
-        const errorText = await progressResponse.text();
-        console.error('Progress endpoint error:', progressResponse.status, errorText);
-        throw new Error(`Progress request failed: ${progressResponse.status}`);
-      }
-
-      // Parse JSON responses
+      // Use API client methods instead of direct fetch
       const [statusData, progressData] = await Promise.all([
-        statusResponse.json(),
-        progressResponse.json()
+        trainerRegistration.getProfileStatus(),
+        trainerRegistration.getRegistrationProgress()
       ]);
       
       console.log('Profile status data:', statusData);
@@ -251,7 +221,8 @@ export default function CompleteRegistrationPage() {
         return;
       }
 
-      if (formData.gym_address.length < 10) {
+      // Only validate gym fields when location preference is 'specific_gym'
+      if (formData.location_preference === 'specific_gym' && formData.gym_address.length < 10) {
         setError('Gym address must be at least 10 characters long.');
         setLoading(false);
         return;
@@ -272,61 +243,33 @@ export default function CompleteRegistrationPage() {
       console.log('Submitting registration with token:', token ? 'present' : 'missing');
       console.log('Token preview:', token ? token.substring(0, 20) + '...' : 'none');
       
-      // Test token validity first
-      const testResponse = await fetch('http://localhost:8000/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (!testResponse.ok) {
-        console.error('Token validation failed:', testResponse.status);
+      // Test token validity first using API client
+      try {
+        await apiClient.getCurrentUser();
+        console.log('Token is valid, proceeding with registration...');
+      } catch (error) {
+        console.error('Token validation failed:', error);
         setError('Your session has expired. Please log in again.');
         setTimeout(() => {
           router.push('/auth/signin');
         }, 2000);
         return;
       }
+
+      // Prepare form data - only include gym fields when location preference is 'specific_gym'
+      const submissionData = { ...formData };
       
-      console.log('Token is valid, proceeding with registration...');
-
-      const response = await fetch('http://localhost:8000/api/trainer-registration/complete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Complete registration error:', response.status, errorText);
-        
-        if (response.status === 401) {
-          setError('Your session has expired. Please log in again.');
-          // Redirect to login after a delay
-          setTimeout(() => {
-            router.push('/auth/signin');
-          }, 2000);
-          return;
-        }
-        
-        // Try to parse detailed error messages
-        try {
-          const errorData = JSON.parse(errorText);
-          if (errorData.detail && Array.isArray(errorData.detail)) {
-            const errorMessages = errorData.detail.map((err: any) => err.msg).join(', ');
-            setError(`Validation errors: ${errorMessages}`);
-          } else {
-            setError(errorData.detail || `Registration failed: ${response.status}`);
-          }
-        } catch {
-          setError(`Registration failed: ${response.status}`);
-        }
-        setLoading(false);
-        return;
+      if (formData.location_preference === 'customer_choice') {
+        // Remove gym fields when customer's choice is selected
+        delete submissionData.gym_name;
+        delete submissionData.gym_address;
+        delete submissionData.gym_city;
+        delete submissionData.gym_state;
+        delete submissionData.gym_zip_code;
+        delete submissionData.gym_phone;
       }
 
-      const data = await response.json();
+      const data = await trainerRegistration.completeRegistration(submissionData);
 
       if (data.success) {
         router.push('/trainer?completed=true');
@@ -450,26 +393,63 @@ export default function CompleteRegistrationPage() {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Gym Information
+                Training Location
               </h3>
               <p className="text-gray-600 mb-6">
-                Provide details about your primary training location. This helps clients know where sessions will take place.
+                Set your primary training location. You can choose a specific gym or allow clients to choose the location.
               </p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Gym Name *
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Location Preference
+              </label>
+              <div className="space-y-3">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="location_preference"
+                    value="specific_gym"
+                    checked={formData.location_preference === 'specific_gym'}
+                    onChange={(e) => handleInputChange('location_preference', e.target.value)}
+                    className="mr-3"
+                  />
+                  <div>
+                    <div className="font-medium text-gray-900">Specific Gym Location</div>
+                    <div className="text-sm text-gray-600">Train at a specific gym or studio</div>
+                  </div>
                 </label>
-                <input
-                  type="text"
-                  value={formData.gym_name}
-                  onChange={(e) => handleInputChange('gym_name', e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="e.g., FitLife Gym"
-                />
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="location_preference"
+                    value="customer_choice"
+                    checked={formData.location_preference === 'customer_choice'}
+                    onChange={(e) => handleInputChange('location_preference', e.target.value)}
+                    className="mr-3"
+                  />
+                  <div>
+                    <div className="font-medium text-gray-900">Customer's Choice</div>
+                    <div className="text-sm text-gray-600">Let clients choose the location (gym, home, online)</div>
+                  </div>
+                </label>
               </div>
+            </div>
+            
+            {formData.location_preference === 'specific_gym' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Gym Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.gym_name}
+                    onChange={(e) => handleInputChange('gym_name', e.target.value)}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="e.g., FitLife Gym"
+                  />
+                </div>
               
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -536,6 +516,23 @@ export default function CompleteRegistrationPage() {
                 />
               </div>
             </div>
+            )}
+            
+            {formData.location_preference === 'customer_choice' && (
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <i data-feather="info" className="h-5 w-5 text-blue-400"></i>
+                  </div>
+                  <div className="ml-3">
+                    <h4 className="font-medium text-blue-900">Customer's Choice Location</h4>
+                    <p className="text-sm text-blue-800 mt-1">
+                      Clients will be able to choose from gym, home, or online sessions when booking with you.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
 
@@ -642,6 +639,9 @@ export default function CompleteRegistrationPage() {
       case 2:
         return formData.price_per_hour && parseFloat(formData.price_per_hour) >= 20 && parseFloat(formData.price_per_hour) <= 200;
       case 3:
+        if (formData.location_preference === 'customer_choice') {
+          return true; // No gym fields required for customer's choice
+        }
         return formData.gym_name && formData.gym_address && formData.gym_city && formData.gym_state && formData.gym_zip_code;
       case 4:
         return formData.bio.length >= 100;

@@ -155,6 +155,7 @@ class Trainer(Base):
     gym_state = Column(String(50))
     gym_zip_code = Column(String(20))
     gym_phone = Column(String(20))
+    location_preference = Column(String(50), default='specific_gym')  # 'specific_gym' or 'customer_choice'
     profile_completion_status = Column(Enum(ProfileCompletionStatus), default=ProfileCompletionStatus.INCOMPLETE)
     profile_completion_date = Column(DateTime(timezone=True), nullable=True)
     
@@ -196,10 +197,16 @@ class Trainer(Base):
         required_fields = [
             self.training_types,
             self.price_per_hour and self.price_per_hour > 0,
-            self.gym_name,
-            self.gym_address,
             self.bio and len(self.bio) >= 100
         ]
+        
+        # Only require gym fields when location preference is 'specific_gym'
+        if self.location_preference == 'specific_gym':
+            required_fields.extend([
+                self.gym_name,
+                self.gym_address
+            ])
+        
         return all(required_fields)
     
     def mark_profile_complete(self):

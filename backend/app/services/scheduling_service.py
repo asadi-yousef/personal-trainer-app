@@ -296,8 +296,15 @@ class SchedulingService:
             if is_combined:
                 score += 5.0  # Higher bonus for successfully combining slots
             
-            # Ensure score doesn't exceed 100
-            score = min(100.0, score)
+            # Enhanced optimization scoring (0-25 points total)
+            enhanced_score = self._calculate_enhanced_score(slot, booking_request)
+            score += enhanced_score
+            
+            # Ensure score doesn't exceed 125 (100 + 25 enhanced)
+            score = min(125.0, score)
+            
+            # Convert score to priority level
+            priority = self._calculate_priority_level(score)
             
             scored_slot = {
                 'slot_id': slot_id,
@@ -306,7 +313,8 @@ class SchedulingService:
                 'end_time': end_time.time(),
                 'datetime_start': start_time,
                 'datetime_end': end_time,
-                'score': round(score, 2),
+                'score': round(score, 2),  # Keep for internal use
+                'priority': priority,  # User-friendly priority level
                 'start_time_str': start_time.strftime("%H:%M"),
                 'end_time_str': end_time.strftime("%H:%M"),
                 'date_str': start_time.strftime("%Y-%m-%d")
@@ -913,3 +921,138 @@ class SchedulingService:
             'status': 'pending',
             'message': 'Booking created successfully'
         }
+    
+    def _calculate_enhanced_score(self, slot, booking_request) -> float:
+        """
+        Calculate enhanced optimization score based on new parameters
+        Returns score between 0-25 points
+        
+        Budget optimization only applies when browsing ALL trainers (no specific trainer selected)
+        """
+        enhanced_score = 0.0
+        
+        # Get trainer info if available (we'll need to modify the calling method)
+        trainer_info = getattr(slot, 'trainer_info', None)
+        
+        # Budget optimization (0-8 points) - ONLY when browsing all trainers
+        if (booking_request.max_budget_per_session and 
+            trainer_info and 
+            not booking_request.trainer_id):  # No specific trainer selected
+            
+            session_cost = self._calculate_session_cost(slot, trainer_info)
+            if session_cost <= booking_request.max_budget_per_session:
+                budget_ratio = session_cost / booking_request.max_budget_per_session
+                if budget_ratio <= 0.7:  # Under 70% of budget
+                    enhanced_score += 8.0
+                elif budget_ratio <= 0.9:  # Under 90% of budget
+                    enhanced_score += 6.0
+                else:  # Close to budget limit
+                    enhanced_score += 4.0
+            else:  # Over budget
+                enhanced_score -= 5.0  # Penalty for over budget
+        
+        # Price sensitivity scoring (0-5 points) - ONLY when browsing all trainers
+        if (trainer_info and 
+            hasattr(trainer_info, 'price_per_hour') and 
+            not booking_request.trainer_id):  # No specific trainer selected
+            
+            price_score = self._calculate_price_sensitivity_score(
+                trainer_info.price_per_hour, 
+                booking_request.price_sensitivity
+            )
+            enhanced_score += price_score
+        
+        # Trainer experience matching (0-4 points)
+        if trainer_info and booking_request.trainer_experience_min:
+            if hasattr(trainer_info, 'experience_years') and trainer_info.experience_years >= booking_request.trainer_experience_min:
+                experience_bonus = min(4.0, trainer_info.experience_years * 0.2)
+                enhanced_score += experience_bonus
+            else:
+                enhanced_score -= 2.0  # Penalty for insufficient experience
+        
+        # Trainer rating matching (0-3 points)
+        if trainer_info and booking_request.trainer_rating_min:
+            if hasattr(trainer_info, 'rating') and trainer_info.rating >= booking_request.trainer_rating_min:
+                rating_bonus = (trainer_info.rating / 5.0) * 3.0
+                enhanced_score += rating_bonus
+            else:
+                enhanced_score -= 1.0  # Penalty for low rating
+        
+        # Session intensity matching (0-3 points)
+        intensity_score = self._calculate_intensity_score(slot, booking_request.session_intensity)
+        enhanced_score += intensity_score
+        
+        # Equipment preference matching (0-2 points)
+        if trainer_info and booking_request.equipment_preference:
+            equipment_score = self._calculate_equipment_score(trainer_info, booking_request.equipment_preference)
+            enhanced_score += equipment_score
+        
+        return max(0.0, min(25.0, enhanced_score))  # Cap between 0-25 points
+    
+    def _calculate_session_cost(self, slot, trainer_info) -> float:
+        """Calculate total session cost"""
+        duration_hours = slot.duration_minutes / 60.0 if hasattr(slot, 'duration_minutes') else 1.0
+        return trainer_info.price_per_hour * duration_hours
+    
+    def _calculate_price_sensitivity_score(self, trainer_price: float, sensitivity: int) -> float:
+        """Calculate price sensitivity score (0-5 points)"""
+        if sensitivity <= 3:  # Very price sensitive
+            return max(0, 5 - (trainer_price / 20))  # Prefer cheaper trainers
+        elif sensitivity <= 6:  # Moderately price sensitive
+            return 2.5  # Neutral scoring
+        else:  # Not price sensitive
+            return 4.0  # Slight preference for higher-end trainers
+    
+    def _calculate_intensity_score(self, slot, session_intensity: str) -> float:
+        """Calculate session intensity score (0-3 points)"""
+        hour = slot.start_time.hour if hasattr(slot, 'start_time') else 12
+        
+        if session_intensity == 'light':
+            # Prefer morning or late afternoon for light sessions
+            if 9 <= hour <= 11 or 15 <= hour <= 17:
+                return 3.0
+            elif 7 <= hour <= 9 or 17 <= hour <= 19:
+                return 2.0
+            else:
+                return 1.0
+        elif session_intensity == 'intense':
+            # Prefer morning or early evening for intense sessions
+            if 7 <= hour <= 9 or 17 <= hour <= 19:
+                return 3.0
+            elif 9 <= hour <= 11 or 15 <= hour <= 17:
+                return 2.0
+            else:
+                return 1.0
+        else:  # moderate
+            return 2.0  # Neutral scoring for moderate intensity
+    
+    def _calculate_equipment_score(self, trainer_info, equipment_preference: str) -> float:
+        """Calculate equipment preference score (0-2 points)"""
+        if equipment_preference == 'gym':
+            # Prefer trainers with gym access
+            if hasattr(trainer_info, 'gym_name') and trainer_info.gym_name:
+                return 2.0
+            else:
+                return 1.0
+        elif equipment_preference == 'minimal':
+            # Prefer trainers who can work with minimal equipment
+            return 1.5  # Most trainers can adapt
+        else:  # none
+            # Prefer trainers who can do bodyweight exercises
+            return 1.0
+    
+    def _calculate_priority_level(self, score: float) -> str:
+        """
+        Convert numerical score to user-friendly priority level
+        
+        Scoring ranges:
+        - High Priority: 90-125 points (Excellent match)
+        - Medium Priority: 60-89 points (Good match)
+        - Low Priority: 0-59 points (Basic availability)
+        """
+        if score >= 90:
+            return "High Priority"
+        elif score >= 60:
+            return "Medium Priority"
+        else:
+            return "Low Priority"

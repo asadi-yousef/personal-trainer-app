@@ -40,11 +40,12 @@ async def create_trainer_profile(
             detail="Trainer profile already exists"
         )
     
-    # Create trainer profile
+    # Create trainer profile with default pricing
     db_trainer = Trainer(
         user_id=current_user.id,
         specialty=trainer_data.specialty,
-        price_per_session=trainer_data.price_per_session,
+        price_per_session=50.0,  # Default for backward compatibility
+        price_per_hour=50.0,     # Default hourly rate
         bio=trainer_data.bio,
         cover_image=trainer_data.cover_image,
         experience_years=trainer_data.experience_years,

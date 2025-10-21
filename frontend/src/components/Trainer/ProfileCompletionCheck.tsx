@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { trainerRegistration } from '@/lib/api';
 
 interface ProfileStatus {
   is_complete: boolean;
@@ -48,42 +49,17 @@ export default function ProfileCompletionCheck({
       setLoading(true);
       setError(null);
       
-      console.log('ProfileCompletionCheck: Making API call to profile-status');
+      console.log('ProfileCompletionCheck: Making API call to profile-status using API client');
 
-      const response = await fetch(`http://localhost:8000/api/trainer-registration/profile-status?t=${Date.now()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      console.log('ProfileCompletionCheck: API response', { 
-        status: response.status, 
-        ok: response.ok 
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('ProfileCompletionCheck: Profile status data', data);
-        setProfileStatus(data);
-        
-        // If profile is not complete and we should redirect, redirect to completion page
-        if (!data.is_complete && redirectToCompletion) {
-          console.log('ProfileCompletionCheck: Profile incomplete, redirecting to completion page');
-          router.push('/trainer/complete-registration');
-          return;
-        }
-      } else {
-        const errorData = await response.json();
-        console.error('ProfileCompletionCheck: API error', errorData);
-        
-        // If API fails but we're a trainer, assume profile is incomplete and redirect
-        if (redirectToCompletion) {
-          console.log('ProfileCompletionCheck: API failed, redirecting to completion page as fallback');
-          router.push('/trainer/complete-registration');
-          return;
-        }
-        
-        setError('Failed to check profile status');
+      const data = await trainerRegistration.getProfileStatus();
+      console.log('ProfileCompletionCheck: Profile status data', data);
+      setProfileStatus(data);
+      
+      // If profile is not complete and we should redirect, redirect to completion page
+      if (!data.is_complete && redirectToCompletion) {
+        console.log('ProfileCompletionCheck: Profile incomplete, redirecting to completion page');
+        router.push('/trainer/complete-registration');
+        return;
       }
     } catch (err) {
       console.error('ProfileCompletionCheck: Exception during check', err);

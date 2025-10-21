@@ -125,8 +125,6 @@ export default function OptimalScheduleFinder({ selectedTrainer, onTrainerSelect
         latest_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 2 weeks ahead
         preferred_times: preferences.preferredTimes,
         avoid_times: [], // Could be enhanced to allow users to specify times to avoid
-        prioritize_convenience: true,
-        prioritize_cost: false,
         allow_weekends: preferences.frequency !== 'daily', // Allow weekends unless daily frequency
         allow_evenings: true
       };

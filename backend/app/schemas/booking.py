@@ -119,6 +119,16 @@ class SmartBookingRequest(BaseModel):
     allow_weekends: bool = True
     allow_evenings: bool = True
     
+    # Enhanced optimization parameters (optional with defaults)
+    max_budget_per_session: Optional[float] = Field(None, ge=0, description="Maximum budget per session")
+    budget_preference: str = Field(default="moderate", description="Budget preference: 'low', 'moderate', 'premium'")
+    price_sensitivity: int = Field(default=5, ge=1, le=10, description="Price sensitivity (1=very price sensitive, 10=price doesn't matter)")
+    trainer_experience_min: Optional[int] = Field(None, ge=0, le=20, description="Minimum trainer experience in years")
+    trainer_rating_min: Optional[float] = Field(None, ge=0, le=5, description="Minimum trainer rating")
+    trainer_specialty_preference: Optional[str] = Field(None, description="Preferred trainer specialty")
+    session_intensity: str = Field(default="moderate", description="Session intensity: 'light', 'moderate', 'intense'")
+    equipment_preference: Optional[str] = Field(None, description="Equipment preference: 'gym', 'minimal', 'none'")
+    
     @field_validator('latest_date')
     @classmethod
     def latest_after_earliest(cls, v, info):

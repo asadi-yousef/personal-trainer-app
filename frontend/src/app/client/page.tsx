@@ -8,13 +8,11 @@ import SessionItem from '../../components/Cards/SessionItem';
 import { lazy, Suspense } from 'react';
 
 // Lazy load heavy components
-const ProgramViewer = lazy(() => import('../../components/Client/ProgramViewer'));
 const MyBookings = lazy(() => import('../../components/Client/MyBookings'));
-const ChatInterface = lazy(() => import('../../components/Messaging/ChatInterface'));
 const SessionStatus = lazy(() => import('../../components/Client/SessionStatus'));
-import { mockStats, mockSessions, mockProgram, mockMessages } from '../../lib/data';
+import { mockStats, mockSessions } from '../../lib/data';
 import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
-import { apiClient, sessions, programs, messages, analytics, goals } from '../../lib/api';
+import { apiClient, sessions, analytics, goals } from '../../lib/api';
 import '../../utils/preloader';
 
 /**
@@ -28,8 +26,6 @@ function ClientDashboardContent() {
   const [dashboardData, setDashboardData] = useState({
     stats: mockStats,
     sessions: mockSessions,
-    program: mockProgram,
-    messages: mockMessages,
     goals: [] as any[]
   });
   const { user } = useAuth();
@@ -49,9 +45,7 @@ function ClientDashboardContent() {
         ]);
 
         // Fetch secondary data after essential data loads
-        const [programsData, messagesData, goalsData, analyticsData] = await Promise.allSettled([
-          programs.getMyPrograms(),
-          messages.getAll({ receiver_id: user.id }),
+        const [goalsData, analyticsData] = await Promise.allSettled([
           goals.getAll(),
           analytics.getClientAnalytics()
         ]);
@@ -73,36 +67,6 @@ function ClientDashboardContent() {
           }));
         }
 
-        // Process programs data
-        let processedProgram = mockProgram;
-        if (programsData.status === 'fulfilled' && programsData.value && programsData.value.length > 0) {
-          const program = programsData.value[0];
-          processedProgram = {
-            id: program.id.toString(),
-            title: program.program?.name || 'Active Program',
-            trainerName: program.program?.trainer?.user?.full_name || 'Trainer',
-            trainerAvatar: program.program?.trainer?.user?.avatar || 'https://i.pravatar.cc/200',
-            status: program.status === 'active' ? 'Active' : 'Completed',
-            description: program.program?.description || 'Your current fitness program',
-            duration: `${program.program?.duration_weeks || 12} weeks`,
-            exercises: program.program?.workouts?.map((w: any) => w.name) || ['Exercise 1', 'Exercise 2'],
-            startDate: program.start_date || '2024-01-01',
-            endDate: program.end_date || '2024-03-25'
-          };
-        }
-
-        // Process messages data
-        let processedMessages = mockMessages;
-        if (messagesData.status === 'fulfilled' && messagesData.value) {
-          processedMessages = messagesData.value.slice(0, 3).map((message: any) => ({
-            id: message.id.toString(),
-            sender: message.sender?.full_name || 'Trainer',
-            senderAvatar: message.sender?.avatar || 'https://i.pravatar.cc/200',
-            lastMessage: message.content || 'New message',
-            timestamp: message.created_at,
-            unread: !message.read_at
-          }));
-        }
 
         // Process goals data
         let processedGoals: any[] = [];
@@ -132,15 +96,6 @@ function ClientDashboardContent() {
           },
           {
             id: '2',
-            title: 'Current Weight',
-            value: '165 lbs',
-            change: '-5 lbs',
-            changeType: 'decrease' as const,
-            icon: 'trending-down',
-            color: 'blue'
-          },
-          {
-            id: '3',
             title: 'Goal Progress',
             value: processedGoals.length > 0 ? 
               `${Math.round((processedGoals.filter(g => g.isAchieved).length / processedGoals.length) * 100)}%` : '68%',
@@ -150,7 +105,7 @@ function ClientDashboardContent() {
             color: 'purple'
           },
           {
-            id: '4',
+            id: '3',
             title: 'Next Session',
             value: processedSessions.length > 0 ? 'Tomorrow' : 'No upcoming sessions',
             change: processedSessions.length > 0 ? processedSessions[0].datetime.split('T')[1].substring(0, 5) : '',
@@ -162,8 +117,6 @@ function ClientDashboardContent() {
         setDashboardData({
           stats: dynamicStats,
           sessions: processedSessions,
-          program: processedProgram,
-          messages: processedMessages,
           goals: processedGoals
         });
 
@@ -300,37 +253,8 @@ function ClientDashboardContent() {
                 </Suspense>
               </div>
 
-              {/* Weight Progress */}
-              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="100">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">Weight Progress</h2>
-                <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <i data-feather="bar-chart-2" className="h-12 w-12 text-gray-400 mx-auto mb-4"></i>
-                    <p className="text-gray-600">Weight tracking chart will be displayed here</p>
-                    <p className="text-sm text-gray-500 mt-2">Connect your smart scale to see detailed analytics</p>
-                  </div>
-                </div>
-              </div>
             </div>
 
-            {/* Right Column */}
-            <div className="space-y-8">
-              {/* Programs */}
-              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="200">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">My Programs</h2>
-                <Suspense fallback={<div className="h-64 bg-gray-100 rounded-lg animate-pulse"></div>}>
-                  <ProgramViewer />
-                </Suspense>
-              </div>
-
-              {/* Messages */}
-              <div className="bg-white rounded-xl shadow-lg p-6" data-aos="fade-up" data-aos-delay="300">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">Messages</h2>
-                <Suspense fallback={<div className="h-48 bg-gray-100 rounded-lg animate-pulse"></div>}>
-                  <ChatInterface />
-                </Suspense>
-              </div>
-            </div>
           </div>
         </div>
       </div>

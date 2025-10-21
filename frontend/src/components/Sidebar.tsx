@@ -30,8 +30,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         { icon: 'home', label: 'Dashboard', href: '/client' },
         { icon: 'zap', label: 'Smart Scheduling', href: '/client/schedule' },
         { icon: 'calendar', label: 'My Schedule', href: '/client/calendar' },
-        { icon: 'clipboard', label: 'Workout Plans', href: '/client/plans' },
-        { icon: 'trending-up', label: 'Progress', href: '/client/progress' },
         { icon: 'message-square', label: 'Messages', href: '/client/messages' },
         { icon: 'user', label: 'My Trainer', href: '/client/trainers' },
       ],
@@ -40,7 +38,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       title: 'Settings',
       items: [
         { icon: 'settings', label: 'Account Settings', href: '/client/settings' },
-        { icon: 'help-circle', label: 'Help & Support', href: '/client/help' },
       ],
     },
   ] : isTrainerRoute ? [

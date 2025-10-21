@@ -39,20 +39,20 @@ interface BookingPriceCalculation {
 }
 
 const TRAINING_TYPES = [
-  { value: 'Strength Training', label: 'Strength Training' },
+  { value: 'Calisthenics', label: 'Calisthenics' },
+  { value: 'Gym Weights', label: 'Gym Weights' },
   { value: 'Cardio', label: 'Cardio' },
   { value: 'Yoga', label: 'Yoga' },
   { value: 'Pilates', label: 'Pilates' },
-  { value: 'Calisthenics', label: 'Calisthenics' },
   { value: 'CrossFit', label: 'CrossFit' },
   { value: 'Functional Training', label: 'Functional Training' },
+  { value: 'Strength Training', label: 'Strength Training' },
   { value: 'Endurance Training', label: 'Endurance Training' },
   { value: 'Flexibility Training', label: 'Flexibility Training' },
   { value: 'Sports Specific', label: 'Sports Specific' },
   { value: 'Rehabilitation', label: 'Rehabilitation' },
   { value: 'Nutrition Coaching', label: 'Nutrition Coaching' },
-  { value: 'Mental Health Coaching', label: 'Mental Health Coaching' },
-  { value: 'Gym Weights', label: 'Gym Weights' }
+  { value: 'Mental Health Coaching', label: 'Mental Health Coaching' }
 ];
 
 const DURATION_OPTIONS = [

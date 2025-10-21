@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth, ProtectedRoute } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { bookings, bookingManagement } from '../../lib/api';
+import { bookings, bookingManagement, trainers } from '../../lib/api';
 
 interface SelectedTrainer {
   id: number;
@@ -20,6 +20,7 @@ interface OptimalSlot {
   start_time_str: string;
   end_time_str: string;
   score: number;
+  priority: string;
   trainer_id?: number;
   trainer_name?: string;
   trainer_specialty?: string;
@@ -34,6 +35,8 @@ function OptimalSchedulingPageContent() {
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<OptimalSlot[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [availableTrainers, setAvailableTrainers] = useState<any[]>([]);
+  const [loadingTrainers, setLoadingTrainers] = useState(false);
   
   // Helper function to get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
@@ -52,6 +55,16 @@ function OptimalSchedulingPageContent() {
   const [duration, setDuration] = useState(60);
   const [earliestDate, setEarliestDate] = useState('');
   const [latestDate, setLatestDate] = useState('');
+  
+  // Enhanced optimization parameters
+  const [maxBudget, setMaxBudget] = useState<number | null>(null);
+  const [budgetPreference, setBudgetPreference] = useState<'low' | 'moderate' | 'premium'>('moderate');
+  const [priceSensitivity, setPriceSensitivity] = useState(5);
+  const [trainerExperienceMin, setTrainerExperienceMin] = useState<number | null>(null);
+  const [trainerRatingMin, setTrainerRatingMin] = useState<number | null>(null);
+  const [trainerSpecialtyPreference, setTrainerSpecialtyPreference] = useState<string>('');
+  const [sessionIntensity, setSessionIntensity] = useState<'light' | 'moderate' | 'intense'>('moderate');
+  const [equipmentPreference, setEquipmentPreference] = useState<string>('');
 
   useEffect(() => {
     if (!user) {
@@ -71,7 +84,22 @@ function OptimalSchedulingPageContent() {
     
     setEarliestDate(today.toISOString().split('T')[0]);
     setLatestDate(twoWeeksLater.toISOString().split('T')[0]);
+
+    // Load available trainers
+    fetchAvailableTrainers();
   }, [user, router]);
+
+  const fetchAvailableTrainers = async () => {
+    try {
+      setLoadingTrainers(true);
+      const response = await trainers.getAll();
+      setAvailableTrainers(response.trainers || []);
+    } catch (err) {
+      console.error('Failed to fetch trainers:', err);
+    } finally {
+      setLoadingTrainers(false);
+    }
+  };
 
   const handleFindOptimalSchedule = async () => {
     if (!user) return;
@@ -90,8 +118,20 @@ function OptimalSchedulingPageContent() {
         earliest_date: new Date(earliestDate).toISOString(),
         latest_date: new Date(latestDate).toISOString(),
         trainer_id: selectedTrainer?.id || null,
-        location: 'Gym',
-        special_requests: 'Booked via optimal scheduling algorithm'
+        location: selectedTrainer ? `${selectedTrainer.name}'s Gym` : 'Gym',
+        special_requests: 'Booked via optimal scheduling algorithm',
+        // Enhanced optimization parameters
+        trainer_experience_min: trainerExperienceMin,
+        trainer_rating_min: trainerRatingMin,
+        trainer_specialty_preference: trainerSpecialtyPreference || null,
+        session_intensity: sessionIntensity,
+        equipment_preference: equipmentPreference || null,
+        // Budget optimization only applies when browsing all trainers
+        ...(selectedTrainer ? {} : {
+          max_budget_per_session: maxBudget,
+          budget_preference: budgetPreference,
+          price_sensitivity: priceSensitivity
+        })
       };
 
       const response = await bookings.findOptimalSchedule(bookingData);
@@ -137,7 +177,8 @@ function OptimalSchedulingPageContent() {
       const slotEndTime = new Date(`${slot.date_str}T${slot.end_time_str}:00`);
       
       // Get user's existing bookings to check for conflicts
-      const existingBookings = await bookingManagement.getMyBookings();
+      const bookingsResponse = await bookingManagement.getMyBookings();
+      const existingBookings = Array.isArray(bookingsResponse) ? bookingsResponse : (bookingsResponse?.bookings || []);
       
       // Check for time conflicts
       const hasConflict = existingBookings.some((booking: any) => {
@@ -162,7 +203,7 @@ function OptimalSchedulingPageContent() {
         trainer_id: slot.trainer_id || selectedTrainer?.id,
         session_type: 'Personal Training',
         duration_minutes: duration,
-        location: 'Gym',
+        location: selectedTrainer ? `${selectedTrainer.name}'s Gym` : 'Gym',
         special_requests: 'Booked via optimal scheduling algorithm',
         preferred_start_date: new Date(`${slot.date_str}T${slot.start_time_str}:00`).toISOString(),
         preferred_end_date: new Date(`${slot.date_str}T${slot.end_time_str}:00`).toISOString(),
@@ -259,6 +300,48 @@ function OptimalSchedulingPageContent() {
           <h2 className="text-xl font-semibold mb-6">Schedule Preferences</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Trainer Selection */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Trainer (Optional)
+              </label>
+              <select
+                value={selectedTrainer?.id || ''}
+                onChange={(e) => {
+                  const trainerId = parseInt(e.target.value);
+                  if (trainerId) {
+                    const trainer = availableTrainers.find(t => t.id === trainerId);
+                    if (trainer) {
+                      setSelectedTrainer({
+                        id: trainer.id,
+                        name: trainer.user_name || 'Trainer',
+                        specialty: trainer.specialty,
+                        rating: trainer.rating || 0,
+                        price: trainer.price_per_hour || trainer.price_per_session || 0,
+                        price_per_hour: trainer.price_per_hour || trainer.price_per_session || 0
+                      });
+                    }
+                  } else {
+                    setSelectedTrainer(null);
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                disabled={loadingTrainers}
+              >
+                <option value="">All Trainers</option>
+                {availableTrainers.map((trainer) => (
+                  <option key={trainer.id} value={trainer.id}>
+                    {trainer.user_name} - {trainer.specialty} (${trainer.price_per_hour || trainer.price_per_session}/hour)
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-sm text-gray-500">
+                {selectedTrainer 
+                  ? `Finding optimal times with ${selectedTrainer.name}`
+                  : 'Finding optimal times across all available trainers'
+                }
+              </p>
+            </div>
             {/* Date Range */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -404,6 +487,152 @@ function OptimalSchedulingPageContent() {
             </div>
           </div>
 
+          {/* Enhanced Optimization Parameters */}
+          <div className="mt-8 space-y-6">
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Advanced Optimization</h3>
+              
+              {/* Pricing Preferences - Only show when browsing all trainers */}
+              {!selectedTrainer && (
+                <div className="bg-green-50 p-4 rounded-lg mb-6">
+                  <h4 className="text-md font-medium text-gray-900 mb-3">💰 Pricing Preferences</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Budget optimization only applies when browsing all trainers. 
+                    When selecting a specific trainer, all sessions are the same price.
+                  </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Budget Limit (Optional)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        placeholder="No limit"
+                        value={maxBudget || ''}
+                        onChange={(e) => setMaxBudget(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Budget Preference</label>
+                    <select
+                      value={budgetPreference}
+                      onChange={(e) => setBudgetPreference(e.target.value as 'low' | 'moderate' | 'premium')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="low">Budget-Friendly</option>
+                      <option value="moderate">Moderate</option>
+                      <option value="premium">Premium</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Price Sensitivity: {priceSensitivity}/10
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={priceSensitivity}
+                    onChange={(e) => setPriceSensitivity(Number(e.target.value))}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Very Price Sensitive</span>
+                    <span>Price Doesn't Matter</span>
+                  </div>
+                </div>
+                </div>
+              )}
+
+              {/* Trainer Preferences */}
+              <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                <h4 className="text-md font-medium text-gray-900 mb-3">👨‍💼 Trainer Preferences</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Min Experience (Years)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="20"
+                      value={trainerExperienceMin || ''}
+                      onChange={(e) => setTrainerExperienceMin(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Min Rating</label>
+                    <select
+                      value={trainerRatingMin || ''}
+                      onChange={(e) => setTrainerRatingMin(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Any Rating</option>
+                      <option value="3">3+ Stars</option>
+                      <option value="4">4+ Stars</option>
+                      <option value="4.5">4.5+ Stars</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Specialty</label>
+                    <select
+                      value={trainerSpecialtyPreference}
+                      onChange={(e) => setTrainerSpecialtyPreference(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Any Specialty</option>
+                      <option value="Strength Training">Strength Training</option>
+                      <option value="Weight Loss">Weight Loss</option>
+                      <option value="Yoga">Yoga</option>
+                      <option value="Cardio">Cardio</option>
+                      <option value="CrossFit">CrossFit</option>
+                      <option value="Functional Training">Functional Training</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Session Preferences */}
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <h4 className="text-md font-medium text-gray-900 mb-3">🏃‍♂️ Session Preferences</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Session Intensity</label>
+                    <select
+                      value={sessionIntensity}
+                      onChange={(e) => setSessionIntensity(e.target.value as 'light' | 'moderate' | 'intense')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="light">Light</option>
+                      <option value="moderate">Moderate</option>
+                      <option value="intense">Intense</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Equipment Preference</label>
+                    <select
+                      value={equipmentPreference}
+                      onChange={(e) => setEquipmentPreference(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Any Equipment</option>
+                      <option value="gym">Gym Equipment</option>
+                      <option value="minimal">Minimal Equipment</option>
+                      <option value="none">No Equipment</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Find Schedule Button */}
           <div className="mt-6">
             <button
@@ -453,8 +682,15 @@ function OptimalSchedulingPageContent() {
                           )}
                         </div>
                         <div className="text-right">
-                          <div className="text-sm text-gray-600">
-                            Score: {slot.score.toFixed(1)}
+                          <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            slot.priority === 'High Priority' ? 'bg-green-100 text-green-800' :
+                            slot.priority === 'Medium Priority' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {slot.priority === 'High Priority' && '🔥 '}
+                            {slot.priority === 'Medium Priority' && '⭐ '}
+                            {slot.priority === 'Low Priority' && '📅 '}
+                            {slot.priority || 'Medium Priority'}
                           </div>
                           {slot.trainer_rating && (
                             <div className="text-sm text-gray-600">

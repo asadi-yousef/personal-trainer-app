@@ -108,9 +108,12 @@ async def get_registration_progress(
         TrainerRegistrationStep(
             step_number=3,
             step_name="Gym Information",
-            is_completed=bool(trainer.gym_name and trainer.gym_address),
+            is_completed=bool(
+                (trainer.location_preference == 'customer_choice') or 
+                (trainer.gym_name and trainer.gym_address)
+            ),
             is_required=True,
-            description="Provide gym details"
+            description="Provide gym details or choose customer's choice"
         ),
         TrainerRegistrationStep(
             step_number=4,
@@ -172,13 +175,25 @@ async def complete_registration(
     # Update trainer profile
     trainer.training_types_list = [t.value for t in request.training_types]
     trainer.price_per_hour = request.price_per_hour
-    trainer.gym_name = request.gym_name
-    trainer.gym_address = request.gym_address
-    trainer.gym_city = request.gym_city
-    trainer.gym_state = request.gym_state
-    trainer.gym_zip_code = request.gym_zip_code
-    trainer.gym_phone = request.gym_phone
+    trainer.location_preference = request.location_preference
     trainer.bio = request.bio
+    
+    # Only update gym fields when location preference is 'specific_gym'
+    if request.location_preference == 'specific_gym':
+        trainer.gym_name = request.gym_name
+        trainer.gym_address = request.gym_address
+        trainer.gym_city = request.gym_city
+        trainer.gym_state = request.gym_state
+        trainer.gym_zip_code = request.gym_zip_code
+        trainer.gym_phone = request.gym_phone
+    else:
+        # Clear gym fields when customer's choice is selected
+        trainer.gym_name = None
+        trainer.gym_address = None
+        trainer.gym_city = None
+        trainer.gym_state = None
+        trainer.gym_zip_code = None
+        trainer.gym_phone = None
     
     # Mark profile as complete
     if trainer.mark_profile_complete():
@@ -311,6 +326,7 @@ async def get_available_time_slots(
         ))
     
     return time_slots
+
 
 
 

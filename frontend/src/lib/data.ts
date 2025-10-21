@@ -194,15 +194,6 @@ export const mockStats: StatCard[] = [
   },
   {
     id: '2',
-    title: 'Current Weight',
-    value: '165 lbs',
-    change: '-5 lbs',
-    changeType: 'decrease',
-    icon: 'trending-down',
-    color: 'blue'
-  },
-  {
-    id: '3',
     title: 'Goal Progress',
     value: '68%',
     change: '+8%',
@@ -211,7 +202,7 @@ export const mockStats: StatCard[] = [
     color: 'purple'
   },
   {
-    id: '4',
+    id: '3',
     title: 'Next Session',
     value: 'Tomorrow',
     change: '10:00 AM',

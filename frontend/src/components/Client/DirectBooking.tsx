@@ -106,7 +106,7 @@ export default function DirectBooking() {
         trainer_id: selectedTrainer.id,
         session_type: 'Personal Training',
         duration_minutes: slot.duration_minutes || durationMinutes,
-        location: 'Gym Studio',
+        location: selectedTrainer.gym_name || 'Gym Studio',
         special_requests: 'Direct booking from available slots',
         // Use local ISO formatting to avoid timezone shifts in backend/UI
         preferred_start_date: `${startDateTime.getFullYear()}-${String(startDateTime.getMonth()+1).padStart(2,'0')}-${String(startDateTime.getDate()).padStart(2,'0')}T${String(startDateTime.getHours()).padStart(2,'0')}:${String(startDateTime.getMinutes()).padStart(2,'0')}:00`,

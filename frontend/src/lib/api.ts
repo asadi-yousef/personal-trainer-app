@@ -814,6 +814,22 @@ class ApiClient {
     });
   }
 
+  // Trainer Registration Methods
+  async getProfileStatus(): Promise<any> {
+    return this.request('/trainer-registration/profile-status');
+  }
+
+  async getRegistrationProgress(): Promise<any> {
+    return this.request('/trainer-registration/progress');
+  }
+
+  async completeRegistration(data: any): Promise<any> {
+    return this.request('/trainer-registration/complete', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
   // Utility methods
   isAuthenticated(): boolean {
     return !!this.token;
@@ -947,6 +963,12 @@ export const timeSlots = {
     apiClient.getTrainerTimeSlots(trainerId, startDate, endDate),
   update: (slotId: number, data: any) => apiClient.updateTimeSlot(slotId, data),
   delete: (slotId: number) => apiClient.deleteTimeSlot(slotId),
+};
+
+export const trainerRegistration = {
+  getProfileStatus: () => apiClient.getProfileStatus(),
+  getRegistrationProgress: () => apiClient.getRegistrationProgress(),
+  completeRegistration: (data: any) => apiClient.completeRegistration(data),
 };
 
 export const bookingRequests = {
