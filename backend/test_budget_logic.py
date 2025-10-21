@@ -73,3 +73,6 @@ if __name__ == "__main__":
     else:
         print("❌ BUDGET LOGIC TESTS FAILED!")
         print("🔧 Please check the implementation")
+
+
+

@@ -321,9 +321,9 @@ export default function MyBookings() {
         </div>
       ) : (
         <div className="grid gap-6">
-          {filteredBookings.map((booking) => (
+          {filteredBookings.map((booking, index) => (
             <div
-              key={booking.id}
+              key={`${booking.id}-${booking.start_time}-${index}`}
               className="bg-white rounded-lg shadow-md p-6 border-l-4 border-indigo-500"
             >
               <div className="flex items-start justify-between">

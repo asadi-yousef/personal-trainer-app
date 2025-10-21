@@ -27,6 +27,9 @@ async def create_booking_request(
     """
     Create a new booking request that requires trainer approval
     """
+    print("DEBUG: /api/booking-requests/ endpoint called!")
+    print(f"DEBUG: request_data = {request_data}")
+    
     # Validate trainer exists
     trainer = db.query(Trainer).filter(Trainer.id == request_data.trainer_id).first()
     if not trainer:
@@ -37,6 +40,14 @@ async def create_booking_request(
     
     # Set expiration date (24 hours from now)
     expires_at = datetime.utcnow() + timedelta(hours=24)
+    
+    # Debug logging
+    print(f"DEBUG: Received booking request data:")
+    print(f"  - start_time: {request_data.start_time}")
+    print(f"  - end_time: {request_data.end_time}")
+    print(f"  - training_type: {request_data.training_type}")
+    print(f"  - location_type: {request_data.location_type}")
+    print(f"  - location_address: {request_data.location_address}")
     
     # Create booking request
     booking_request = BookingRequest(
@@ -54,8 +65,16 @@ async def create_booking_request(
         allow_evenings=request_data.allow_evenings,
         is_recurring=request_data.is_recurring,
         recurring_pattern=request_data.recurring_pattern,
+        # New time-based fields
+        start_time=request_data.start_time,
+        end_time=request_data.end_time,
+        training_type=request_data.training_type,
+        location_type=request_data.location_type,
+        location_address=request_data.location_address,
         expires_at=expires_at
     )
+    
+    print(f"DEBUG: Created booking request with start_time: {booking_request.start_time}, end_time: {booking_request.end_time}")
     
     db.add(booking_request)
     db.commit()
@@ -184,6 +203,9 @@ async def approve_booking_request(
     """
     Approve or reject a booking request (trainer only)
     """
+    print(f"DEBUG: Approval endpoint called for request {request_id}")
+    print(f"DEBUG: Approval data: {approval}")
+    
     # Get the booking request
     request = db.query(BookingRequest).filter(BookingRequest.id == request_id).first()
     if not request:
@@ -229,8 +251,13 @@ async def approve_booking_request(
     if approval.status == BookingRequestStatus.APPROVED:
         # For booking requests, use the client's preferred times directly
         # Trainer can only approve/reject, not change times
-        if request.preferred_start_date:
-            # Use client's preferred start time
+        if request.start_time and request.end_time:
+            # New format: use specific start and end times
+            start_time = request.start_time
+            end_time = request.end_time
+            request.confirmed_date = start_time
+        elif request.preferred_start_date:
+            # Old format: use client's preferred start time and calculate end time
             start_time = request.preferred_start_date
             end_time = start_time + timedelta(minutes=request.duration_minutes)
             request.confirmed_date = start_time
@@ -239,6 +266,46 @@ async def approve_booking_request(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Client preferred times are required for approval"
             )
+        
+        # Check trainer availability for the requested time slot
+        from app.models import Booking, Session as SessionModel
+        from app.models import BookingStatus, SessionStatus
+        
+        print(f"DEBUG: Checking availability for trainer {request.trainer_id}")
+        print(f"DEBUG: Requested time: {start_time} to {end_time}")
+        
+        # Check for existing bookings that overlap with the requested time
+        existing_bookings = db.query(Booking).filter(
+            Booking.trainer_id == request.trainer_id,
+            Booking.status == BookingStatus.CONFIRMED,
+            Booking.start_time < end_time,
+            Booking.end_time > start_time
+        ).all()
+        
+        # Check for existing sessions that overlap with the requested time
+        existing_sessions = db.query(SessionModel).filter(
+            SessionModel.trainer_id == request.trainer_id,
+            SessionModel.status == SessionStatus.CONFIRMED,
+            SessionModel.scheduled_date < end_time,
+            SessionModel.scheduled_date + timedelta(minutes=SessionModel.duration_minutes) > start_time
+        ).all()
+        
+        print(f"DEBUG: Found {len(existing_bookings)} existing bookings")
+        for booking in existing_bookings:
+            print(f"DEBUG: Existing booking: {booking.start_time} to {booking.end_time}")
+        
+        print(f"DEBUG: Found {len(existing_sessions)} existing sessions")
+        for session in existing_sessions:
+            print(f"DEBUG: Existing session: {session.scheduled_date} for {session.duration_minutes} minutes")
+        
+        if existing_bookings or existing_sessions:
+            print(f"DEBUG: Trainer is not available - conflicts found")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Trainer is not available at the requested time. Please check your schedule."
+            )
+        
+        print(f"DEBUG: Trainer is available - proceeding with approval")
         
         # Calculate the price
         trainer = db.query(Trainer).filter(Trainer.id == request.trainer_id).first()
@@ -263,11 +330,12 @@ async def approve_booking_request(
             preferred_times=request.preferred_times,
             confirmed_date=request.confirmed_date,  # Use the confirmed date (client's preferred time)
             start_time=start_time,  # Client's preferred start time
-            end_time=end_time,      # Calculated end time based on client's preferred start
+            end_time=end_time,      # Client's preferred end time
             total_cost=calculated_price,
             price_per_hour=trainer.price_per_hour,
             training_type=request.training_type or request.session_type,
             location_type=request.location_type,
+            location_address=request.location_address,
             status=BookingStatus.CONFIRMED,
             is_recurring=request.is_recurring,
             recurring_pattern=request.recurring_pattern
@@ -293,7 +361,7 @@ async def approve_booking_request(
             session_type=request.session_type,
             scheduled_date=start_time,  # Use client's preferred start time
             duration_minutes=request.duration_minutes,
-            location=request.location,
+            location=request.location_address or request.location,
             notes=request.special_requests,
             status=SessionStatus.CONFIRMED
         )

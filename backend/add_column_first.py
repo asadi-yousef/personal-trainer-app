@@ -69,3 +69,6 @@ if __name__ == "__main__":
         print("🚀 Now you can run: python update_existing_trainers.py")
     else:
         print("💥 Failed to add column!")
+
+
+

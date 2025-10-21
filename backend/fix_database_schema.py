@@ -73,3 +73,6 @@ if __name__ == "__main__":
     else:
         print("💥 Migration failed!")
         print("🔧 Please check your database connection and run the script again")
+
+
+

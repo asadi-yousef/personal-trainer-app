@@ -37,3 +37,6 @@ def upgrade():
 def downgrade():
     """Remove location_preference column from trainers table"""
     op.drop_column('trainers', 'location_preference')
+
+
+

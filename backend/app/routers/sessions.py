@@ -381,6 +381,9 @@ async def create_booking(
     db: Session = Depends(get_db)
 ):
     """Create a booking request (for clients)"""
+    print("DEBUG: /api/sessions/bookings endpoint called!")
+    print(f"DEBUG: booking_data = {booking_data}")
+    
     if current_user.role != UserRole.CLIENT:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

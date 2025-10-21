@@ -19,10 +19,17 @@ class BookingRequestCreate(BaseModel):
     special_requests: Optional[str] = None
     
     # Time preferences
-    preferred_start_date: datetime
-    preferred_end_date: datetime
+    preferred_start_date: Optional[datetime] = None
+    preferred_end_date: Optional[datetime] = None
     preferred_times: Optional[List[str]] = None
     avoid_times: Optional[List[str]] = None
+    
+    # New time-based fields
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    training_type: Optional[str] = None
+    location_type: Optional[str] = None
+    location_address: Optional[str] = None
     
     # Additional preferences
     allow_weekends: bool = True
@@ -40,8 +47,8 @@ class BookingRequestResponse(BaseModel):
     location: Optional[str]
     special_requests: Optional[str]
     status: BookingRequestStatus
-    preferred_start_date: datetime
-    preferred_end_date: datetime
+    preferred_start_date: Optional[datetime]
+    preferred_end_date: Optional[datetime]
     preferred_times: Optional[List[str]]
     avoid_times: Optional[List[str]]
     allow_weekends: bool
@@ -51,9 +58,19 @@ class BookingRequestResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
     
+    # New time-based fields
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    training_type: Optional[str] = None
+    location_type: Optional[str] = None
+    location_address: Optional[str] = None
+    total_cost: Optional[float] = None
+    
     # Related data
     client_name: Optional[str] = None
     trainer_name: Optional[str] = None
+    client_email: Optional[str] = None
+    expires_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True

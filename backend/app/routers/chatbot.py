@@ -119,7 +119,7 @@ def _fallback_reply(message: str, context: Optional[str]) -> ChatResponse:
     return ChatResponse(
         reply=reply,
         source="fallback",
-        suggestions=_suggestions_for(message, context, user_role),
+        suggestions=_suggestions_for(message, context, "client"),
     )
 
 

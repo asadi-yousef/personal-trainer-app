@@ -104,7 +104,13 @@ class BookingService:
         allow_weekends: bool = True,
         allow_evenings: bool = True,
         is_recurring: bool = False,
-        recurring_pattern: Optional[str] = None
+        recurring_pattern: Optional[str] = None,
+        # New time-based fields
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        training_type: Optional[str] = None,
+        location_type: Optional[str] = None,
+        location_address: Optional[str] = None
     ) -> Dict:
         """Create a booking request that requires trainer approval"""
         
@@ -121,6 +127,17 @@ class BookingService:
                 raise ValueError("Trainer not found or not available")
             
             # Create booking request
+            # Calculate priority score based on various factors
+            priority_score = self._calculate_priority_score(
+                duration_minutes=duration_minutes,
+                is_recurring=is_recurring,
+                training_type=training_type,
+                location_type=location_type,
+                special_requests=special_requests,
+                start_time=start_time,
+                trainer_id=trainer_id
+            )
+            
             booking_request = BookingRequest(
                 client_id=client_id,
                 trainer_id=trainer_id,
@@ -136,6 +153,13 @@ class BookingService:
                 allow_evenings=allow_evenings,
                 is_recurring=is_recurring,
                 recurring_pattern=recurring_pattern,
+                # New time-based fields
+                start_time=start_time,
+                end_time=end_time,
+                training_type=training_type,
+                location_type=location_type,
+                location_address=location_address,
+                priority_score=priority_score,
                 status=BookingRequestStatus.PENDING,
                 expires_at=datetime.now() + timedelta(hours=24)  # 24-hour expiration
             )
@@ -250,19 +274,9 @@ class BookingService:
                 
                 # Find or create time slots based on request type
                 if booking_request.start_time and booking_request.end_time:
-                    # New format: find specific requested slot(s)
-                    slot_ids = self._find_requested_time_slot_atomic(
-                        trainer_id=trainer_id,
-                        start_time=confirmed_start_time,
-                        end_time=confirmed_end_time,
-                        duration_minutes=duration_minutes
-                    )
-                    
-                    if not slot_ids:
-                        logger.error(
-                            f"Requested time slots not available for BookingRequest {booking_request_id}"
-                        )
-                        raise ValueError("Requested time slot is no longer available")
+                    # New format: create booking directly without time slots
+                    logger.info(f"New format booking - creating direct booking for {confirmed_start_time} to {confirmed_end_time}")
+                    slot_ids = []  # No time slots needed for new format
                 else:
                     # Old format: create slots on demand for flexible scheduling
                     slot_ids = self._create_flexible_time_slots(
@@ -882,10 +896,136 @@ class BookingService:
                 "allow_evenings": req.allow_evenings,
                 "is_recurring": req.is_recurring,
                 "created_at": req.created_at.isoformat(),
-                "expires_at": req.expires_at.isoformat()
+                "expires_at": req.expires_at.isoformat(),
+                # NEW FIELDS
+                "start_time": req.start_time.isoformat() if req.start_time else None,
+                "end_time": req.end_time.isoformat() if req.end_time else None,
+                "training_type": req.training_type,
+                "location_type": req.location_type,
+                "location_address": req.location_address,
+                "total_cost": req.total_cost,
+                "priority": req.priority_score,
+                "status": req.status.value if req.status else "PENDING"
             })
         
         return result
+
+    def _calculate_priority_score(
+        self, 
+        duration_minutes: int, 
+        is_recurring: bool, 
+        training_type: str = None,
+        location_type: str = None,
+        special_requests: str = None,
+        start_time: datetime = None,
+        trainer_id: int = None
+    ) -> float:
+        """
+        Calculate priority score for a booking request (1-10 scale) with trainer constraints.
+        
+        Higher scores = higher priority
+        
+        Factors:
+        - Recurring clients: +4 points (highest priority)
+        - Trainer work hours compliance: +2 points
+        - Preferred time blocks: +1.5 points
+        - Training type alignment: Different scores for different types
+        - Session duration: Longer sessions get more priority
+        - Special requests: +2 points (indicates urgency)
+        - Location convenience: Home vs gym affects priority
+        """
+        score = 2.0  # Lower base score for stricter evaluation
+        
+        # Recurring clients get highest priority
+        if is_recurring:
+            score += 4.0
+        
+        # Check trainer constraints if trainer_id and start_time provided
+        if trainer_id and start_time:
+            from app.models import TrainerSchedulingPreferences
+            prefs = self.db.query(TrainerSchedulingPreferences).filter(
+                TrainerSchedulingPreferences.trainer_id == trainer_id
+            ).first()
+            
+            if prefs:
+                # Work hours compliance (major factor)
+                if prefs.work_start_time and prefs.work_end_time:
+                    from datetime import time
+                    work_start = time.fromisoformat(prefs.work_start_time)
+                    work_end = time.fromisoformat(prefs.work_end_time)
+                    if work_start <= start_time.time() <= work_end:
+                        score += 2.0  # Within work hours
+                    else:
+                        score -= 1.0  # Outside work hours
+                
+                # Preferred time blocks compliance
+                if prefs.preferred_time_blocks_list:
+                    hour = start_time.hour
+                    in_preferred = False
+                    for block in prefs.preferred_time_blocks_list:
+                        if block == 'morning' and 6 <= hour < 12:
+                            in_preferred = True
+                            break
+                        elif block == 'afternoon' and 12 <= hour < 18:
+                            in_preferred = True
+                            break
+                        elif block == 'evening' and 18 <= hour < 22:
+                            in_preferred = True
+                            break
+                    
+                    if in_preferred:
+                        score += 1.5  # Within preferred time blocks
+                    else:
+                        score -= 0.5  # Outside preferred time blocks
+                
+                # Days off compliance
+                if prefs.days_off_list and start_time.weekday() in prefs.days_off_list:
+                    score -= 2.0  # Major penalty for days off
+        
+        # Training type gets different priority scores (more strict)
+        if training_type:
+            type_scores = {
+                'Personal Training': 3.0,  # Highest value
+                'Nutrition Coaching': 2.5,
+                'Rehabilitation': 2.5,
+                'Calisthenics': 2.0,
+                'Gym Weights': 1.5,
+                'Cardio': 1.0,
+                'Yoga': 0.8,
+                'Pilates': 0.8
+            }
+            score += type_scores.get(training_type, 1.0)
+        
+        # Session duration affects priority (longer = higher priority)
+        if duration_minutes >= 120:
+            score += 2.0  # 2+ hours (high value)
+        elif duration_minutes >= 90:
+            score += 1.5   # 1.5 hours
+        elif duration_minutes >= 60:
+            score += 1.0   # 1 hour
+        else:
+            score += 0.3   # Less than 1 hour
+        
+        # Special requests indicate urgency (higher weight)
+        if special_requests and len(special_requests.strip()) > 0:
+            # Check if it's just the default message
+            if "Booked via optimal scheduling algorithm" not in special_requests:
+                score += 2.0  # Real special requests (higher weight)
+            else:
+                score += 0.5  # Default message gets less priority
+        
+        # Location convenience (higher weight)
+        if location_type == 'home':
+            score += 1.5  # Home training is more convenient
+        elif location_type == 'gym':
+            score += 0.5  # Gym is standard
+        
+        # Reduce randomness for more predictable scoring
+        import random
+        score += random.uniform(0.05, 0.15)  # Smaller random variation
+        
+        # Ensure score is within 1-10 range
+        return max(1.0, min(10.0, round(score, 1)))
 
     def get_booking_requests_for_client(self, client_id: int) -> List[Dict]:
         """Get all booking requests created by a client (pending and recent)"""

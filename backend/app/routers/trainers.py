@@ -1,6 +1,7 @@
 """
 Trainers router for FitConnect API
 """
+import json
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -135,7 +136,7 @@ async def get_trainers(
             specialty=trainer.specialty,
             price_per_session=trainer.price_per_session,
             price_per_hour=trainer.price_per_hour,
-            training_types=trainer.training_types,
+            training_types=json.dumps(trainer.training_types) if trainer.training_types else None,
             bio=trainer.bio,
             cover_image=trainer.cover_image,
             experience_years=trainer.experience_years,

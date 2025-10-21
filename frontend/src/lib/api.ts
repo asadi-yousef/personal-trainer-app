@@ -51,6 +51,7 @@ export interface Trainer {
   is_available: boolean;
   created_at: string;
   user_name: string;
+  training_types?: string[];
   user_email: string;
   user_avatar?: string;
 }
@@ -225,7 +226,17 @@ class ApiClient {
     const queryString = searchParams.toString();
     const endpoint = queryString ? `/trainers?${queryString}` : '/trainers';
     
-    return this.request(endpoint);
+    const response = await this.request(endpoint);
+    
+    // Parse training_types JSON strings to arrays
+    if (response.trainers) {
+      response.trainers = response.trainers.map((trainer: any) => ({
+        ...trainer,
+        training_types: trainer.training_types ? JSON.parse(trainer.training_types) : []
+      }));
+    }
+    
+    return response;
   }
 
   async getTrainer(id: number): Promise<Trainer> {

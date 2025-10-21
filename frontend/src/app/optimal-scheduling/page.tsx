@@ -12,6 +12,7 @@ interface SelectedTrainer {
   rating: number;
   price: number;
   price_per_hour?: number;
+  training_types?: string[];
 }
 
 interface OptimalSlot {
@@ -29,7 +30,7 @@ interface OptimalSlot {
 }
 
 function OptimalSchedulingPageContent() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const router = useRouter();
   const [selectedTrainer, setSelectedTrainer] = useState<SelectedTrainer | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,6 +56,7 @@ function OptimalSchedulingPageContent() {
   const [duration, setDuration] = useState(60);
   const [earliestDate, setEarliestDate] = useState('');
   const [latestDate, setLatestDate] = useState('');
+  const [selectedTrainingType, setSelectedTrainingType] = useState<string>('');
   
   // Enhanced optimization parameters
   const [maxBudget, setMaxBudget] = useState<number | null>(null);
@@ -93,6 +95,14 @@ function OptimalSchedulingPageContent() {
     try {
       setLoadingTrainers(true);
       const response = await trainers.getAll();
+      console.log('DEBUG: Fetched trainers:', response.trainers);
+      response.trainers.forEach((trainer, index) => {
+        console.log(`DEBUG: Trainer ${index}:`, {
+          id: trainer.id,
+          name: trainer.user_name,
+          training_types: trainer.training_types
+        });
+      });
       setAvailableTrainers(response.trainers || []);
     } catch (err) {
       console.error('Failed to fetch trainers:', err);
@@ -166,6 +176,8 @@ function OptimalSchedulingPageContent() {
   };
 
   const handleBookSlot = async (slot: OptimalSlot) => {
+    console.log('DEBUG: handleBookSlot called with slot:', slot);
+    
     if (!user) {
       alert('Please log in to book sessions');
       return;
@@ -198,22 +210,63 @@ function OptimalSchedulingPageContent() {
         return;
       }
 
+      // Reserve the time slot temporarily to prevent other clients from booking it
+      try {
+        console.log('DEBUG: Reserving time slot...');
+        console.log('DEBUG: Token:', token);
+        console.log('DEBUG: User:', user);
+        const reservationResponse = await fetch('http://localhost:8000/api/booking-management/reserve-slot', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            trainer_id: slot.trainer_id || selectedTrainer?.id,
+            start_time: new Date(`${slot.date_str}T${slot.start_time_str}:00`).toISOString(),
+            end_time: new Date(`${slot.date_str}T${slot.end_time_str}:00`).toISOString(),
+            duration_minutes: duration
+          })
+        });
+
+        if (!reservationResponse.ok) {
+          const errorData = await reservationResponse.json();
+          console.error('DEBUG: Reservation failed:', errorData);
+          alert(`Time slot is no longer available: ${errorData.detail || 'Please try another time.'}`);
+          return;
+        }
+
+        console.log('DEBUG: Time slot reserved successfully');
+      } catch (error) {
+        console.error('Failed to reserve time slot:', error);
+        alert('Failed to reserve time slot. Please try again.');
+        return;
+      }
+
       // Create a booking request for the optimal slot
       const bookingRequestData = {
         trainer_id: slot.trainer_id || selectedTrainer?.id,
-        session_type: 'Personal Training',
+        session_type: selectedTrainingType || 'Personal Training',
         duration_minutes: duration,
         location: selectedTrainer ? `${selectedTrainer.name}'s Gym` : 'Gym',
         special_requests: 'Booked via optimal scheduling algorithm',
-        preferred_start_date: new Date(`${slot.date_str}T${slot.start_time_str}:00`).toISOString(),
-        preferred_end_date: new Date(`${slot.date_str}T${slot.end_time_str}:00`).toISOString(),
-        preferred_times: [slot.start_time_str],
+        // New format: use start_time and end_time instead of preferred dates
+        start_time: new Date(`${slot.date_str}T${slot.start_time_str}:00`).toISOString(),
+        end_time: new Date(`${slot.date_str}T${slot.end_time_str}:00`).toISOString(),
+        training_type: selectedTrainingType || 'Personal Training',
+        location_type: 'gym',
+        location_address: selectedTrainer ? `${selectedTrainer.name}'s Gym` : 'Gym',
         allow_weekends: true,
         allow_evenings: true,
         is_recurring: false
       };
 
-      await bookingManagement.createBookingRequest(bookingRequestData);
+      console.log('DEBUG: Selected training type:', selectedTrainingType);
+      console.log('DEBUG: Selected trainer:', selectedTrainer?.name);
+      console.log('DEBUG: Creating booking request with data:', JSON.stringify(bookingRequestData, null, 2));
+      console.log('DEBUG: About to call createBookingRequest API...');
+      const result = await bookingManagement.createBookingRequest(bookingRequestData);
+      console.log('DEBUG: Booking request created successfully, result:', result);
       alert('Booking request sent successfully! The trainer will review and confirm your booking.');
       
       // Clear suggestions and redirect to client dashboard
@@ -292,6 +345,32 @@ function OptimalSchedulingPageContent() {
                 Browse All Trainers
               </button>
             </div>
+            
+            {/* Training Type Selection */}
+            {selectedTrainer && (
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Training Type
+                </label>
+                {console.log('DEBUG: selectedTrainer.training_types:', selectedTrainer.training_types)}
+                <select
+                  value={selectedTrainingType}
+                  onChange={(e) => setSelectedTrainingType(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Choose a training type...</option>
+                  {selectedTrainer.training_types && selectedTrainer.training_types.length > 0 ? (
+                    selectedTrainer.training_types.map((type, index) => (
+                      <option key={index} value={type}>
+                        {type}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="Personal Training">Personal Training</option>
+                  )}
+                </select>
+              </div>
+            )}
           </div>
         )}
 
@@ -318,7 +397,8 @@ function OptimalSchedulingPageContent() {
                         specialty: trainer.specialty,
                         rating: trainer.rating || 0,
                         price: trainer.price_per_hour || trainer.price_per_session || 0,
-                        price_per_hour: trainer.price_per_hour || trainer.price_per_session || 0
+                        price_per_hour: trainer.price_per_hour || trainer.price_per_session || 0,
+                        training_types: trainer.training_types ? JSON.parse(trainer.training_types) : []
                       });
                     }
                   } else {

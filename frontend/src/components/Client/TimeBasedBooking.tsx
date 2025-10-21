@@ -290,7 +290,20 @@ export default function TimeBasedBooking() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('http://localhost:8000/api/booking-requests/', {
+      console.log('DEBUG: Creating booking request with data:', {
+        trainer_id: selectedTrainer.id,
+        session_type: selectedTrainingType,
+        duration_minutes: calculateDuration(selectedStartTime, selectedEndTime),
+        location: selectedLocationType === 'home' ? 'Client\'s home address' : selectedTrainer.gym_address,
+        start_time: `${selectedDate}T${startTime}:00`,
+        end_time: `${selectedDate}T${endTime}:00`,
+        training_type: selectedTrainingType,
+        location_type: selectedLocationType,
+        location_address: selectedLocationType === 'home' ? 'Client\'s home address' : selectedTrainer.gym_address,
+        special_requests: specialRequests
+      });
+
+      const response = await fetch('http://localhost:8000/api/booking-management/booking-request', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -298,6 +311,9 @@ export default function TimeBasedBooking() {
         },
         body: JSON.stringify({
           trainer_id: selectedTrainer.id,
+          session_type: selectedTrainingType,
+          duration_minutes: calculateDuration(selectedStartTime, selectedEndTime),
+          location: selectedLocationType === 'home' ? 'Client\'s home address' : selectedTrainer.gym_address,
           start_time: `${selectedDate}T${startTime}:00`,
           end_time: `${selectedDate}T${endTime}:00`,
           training_type: selectedTrainingType,
@@ -307,7 +323,11 @@ export default function TimeBasedBooking() {
         })
       });
 
+      console.log('DEBUG: Response status:', response.status);
+      console.log('DEBUG: Response ok:', response.ok);
+
       if (response.ok) {
+        console.log('DEBUG: Booking request created successfully');
         setBookingSuccess(true);
         // Clear the form
         setSelectedStartTime('');
@@ -317,10 +337,11 @@ export default function TimeBasedBooking() {
         setTimeout(() => setBookingSuccess(false), 3000);
       } else {
         const errorData = await response.json();
+        console.log('DEBUG: Error response:', errorData);
         setError(errorData.detail || 'Failed to create booking');
       }
     } catch (err: any) {
-      console.error('Failed to create booking:', err);
+      console.error('DEBUG: Exception in createBooking:', err);
       setError('Failed to create booking: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
@@ -328,6 +349,13 @@ export default function TimeBasedBooking() {
   };
 
   const handleCheckAvailability = async () => {
+    console.log('DEBUG: handleCheckAvailability called');
+    console.log('DEBUG: selectedStartTime:', selectedStartTime);
+    console.log('DEBUG: selectedEndTime:', selectedEndTime);
+    console.log('DEBUG: selectedDate:', selectedDate);
+    console.log('DEBUG: selectedTrainer:', selectedTrainer);
+    console.log('DEBUG: selectedTrainingType:', selectedTrainingType);
+    
     if (!selectedStartTime || !selectedEndTime || !selectedDate || !selectedTrainer || !selectedTrainingType) {
       setError('Please fill in all required fields');
       return;
@@ -505,11 +533,19 @@ export default function TimeBasedBooking() {
               className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             >
               <option value="">Select training type</option>
-              {TRAINING_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
+              {selectedTrainer && selectedTrainer.training_types && selectedTrainer.training_types.length > 0 ? (
+                selectedTrainer.training_types.map((type, index) => (
+                  <option key={index} value={type}>
+                    {type}
+                  </option>
+                ))
+              ) : (
+                TRAINING_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 

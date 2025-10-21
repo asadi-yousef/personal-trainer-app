@@ -16,7 +16,7 @@ class ProposedScheduleEntry(BaseModel):
     duration_minutes: int
     start_time: datetime
     end_time: datetime
-    slot_ids: List[int]
+    slot_ids: List[str]
     is_contiguous: bool = Field(
         description="Whether this entry uses multiple contiguous slots"
     )

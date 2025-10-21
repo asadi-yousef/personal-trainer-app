@@ -15,3 +15,6 @@ AFTER gym_phone;
 
 -- Verify the column was added
 DESCRIBE trainers;
+
+
+

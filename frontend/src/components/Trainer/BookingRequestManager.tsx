@@ -16,6 +16,9 @@ interface BookingRequest {
   preferred_end_date?: string;
   start_time?: string;
   end_time?: string;
+  training_type?: string;
+  location_type?: string;
+  location_address?: string;
   total_cost?: number;
   preferred_times: string[];
   allow_weekends: boolean;
@@ -53,28 +56,47 @@ export default function BookingRequestManager() {
         ? (response as any).booking_requests
         : (Array.isArray(response) ? (response as any) : ((response as any)?.requests || (response as any)?.data || []));
 
+      console.log('DEBUG: Raw response from backend:', response);
+      console.log('DEBUG: Raw booking requests array:', raw);
+      
       // Normalize: this endpoint already returns only pending requests; ensure each has status 'PENDING'
-      const data: BookingRequest[] = (raw || []).map((r: any) => ({
-        id: r.id,
-        client_name: r.client_name,
-        client_email: r.client_email,
-        session_type: r.session_type,
-        duration_minutes: r.duration_minutes,
-        location: r.location,
-        special_requests: r.special_requests,
-        preferred_start_date: r.preferred_start_date,
-        preferred_end_date: r.preferred_end_date,
-        start_time: r.start_time,
-        end_time: r.end_time,
-        total_cost: r.total_cost,
-        preferred_times: r.preferred_times || [],
-        allow_weekends: !!r.allow_weekends,
-        allow_evenings: !!r.allow_evenings,
-        is_recurring: !!r.is_recurring,
-        status: (r.status || 'PENDING'),
-        created_at: r.created_at,
-        expires_at: r.expires_at,
-      }));
+      const data: BookingRequest[] = (raw || []).map((r: any) => {
+        console.log('DEBUG: Processing individual booking request:', {
+          id: r.id,
+          start_time: r.start_time,
+          end_time: r.end_time,
+          training_type: r.training_type,
+          location_type: r.location_type,
+          preferred_start_date: r.preferred_start_date,
+          preferred_end_date: r.preferred_end_date,
+          session_type: r.session_type
+        });
+        
+        return {
+          id: r.id,
+          client_name: r.client_name,
+          client_email: r.client_email,
+          session_type: r.session_type,
+          duration_minutes: r.duration_minutes,
+          location: r.location,
+          special_requests: r.special_requests,
+          preferred_start_date: r.preferred_start_date,
+          preferred_end_date: r.preferred_end_date,
+          start_time: r.start_time,
+          end_time: r.end_time,
+          training_type: r.training_type,
+          location_type: r.location_type,
+          location_address: r.location_address,
+          total_cost: r.total_cost,
+          preferred_times: r.preferred_times || [],
+          allow_weekends: !!r.allow_weekends,
+          allow_evenings: !!r.allow_evenings,
+          is_recurring: !!r.is_recurring,
+          status: (r.status || 'PENDING'),
+          created_at: r.created_at,
+          expires_at: r.expires_at,
+        };
+      });
 
       // Helper: get local midnight for today
       const getTodayMidnight = () => {
@@ -279,38 +301,42 @@ export default function BookingRequestManager() {
                       </p>
                     </div>
                     <div>
-                      {request.start_time && request.end_time ? (
-                        // New format: show specific requested time
-                        <>
-                          <p className="text-sm text-gray-600">
-                            <span className="font-medium">Requested Session Time:</span>
+                      {/* Session Details */}
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-4">
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-600">
+                              <span className="font-medium">Session:</span> {request.training_type || 'Personal Training'}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              <span className="font-medium">Duration:</span> {request.duration_minutes} minutes
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              <span className="font-medium">Location:</span> {request.location_type === 'home' ? 'Client\'s home' : 'Gym'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Date and Time - NEW FORMAT ONLY */}
+                        {console.log('DEBUG: Rendering booking request display:', {
+                          id: request.id,
+                          start_time: request.start_time,
+                          end_time: request.end_time,
+                          training_type: request.training_type,
+                          location_type: request.location_type
+                        })}
+                        <div className="bg-indigo-50 p-3 rounded-lg">
+                          <p className="text-sm font-semibold text-indigo-800">
+                            Date: {request.start_time ? formatDate(request.start_time) : 'Not specified'}
                           </p>
-                          <p className="text-sm font-semibold text-indigo-600">
-                            {formatDate(request.start_time)} at {formatTime(request.start_time)} - {formatTime(request.end_time)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Duration: {request.duration_minutes} minutes
-                          </p>
-                        </>
-                      ) : (
-                        // Old format: show preferred date range
-                        <>
-                          <p className="text-sm text-gray-600">
-                            <span className="font-medium">Preferred Date Range:</span>
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {request.preferred_start_date && request.preferred_end_date
-                              ? `${formatDate(request.preferred_start_date)} - ${formatDate(request.preferred_end_date)}`
-                              : 'Flexible'
+                          <p className="text-sm font-semibold text-indigo-800">
+                            Time: {request.start_time && request.end_time 
+                              ? `${formatTime(request.start_time)} - ${formatTime(request.end_time)}`
+                              : 'Not specified'
                             }
                           </p>
-                          {request.preferred_times && request.preferred_times.length > 0 && (
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">Preferred Times:</span> {request.preferred_times.join(', ')}
-                            </p>
-                          )}
-                        </>
-                      )}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
