@@ -285,10 +285,8 @@ class SchedulingService:
             # Duration optimization (0-5 points)
             if booking_request.duration_minutes == 60:
                 score += 5.0  # Standard 1-hour sessions
-            elif booking_request.duration_minutes == 90:
-                score += 4.0  # 90-minute sessions
             elif booking_request.duration_minutes == 120:
-                score += 3.0  # 2-hour sessions
+                score += 4.0  # 2-hour sessions
             else:
                 score += 2.0  # Other durations
             
@@ -775,8 +773,8 @@ class SchedulingService:
         This is the new time-based booking system
         """
         # Validate duration
-        if duration_minutes not in [60, 90, 120]:
-            raise ValueError("Duration must be 60, 90, or 120 minutes")
+        if duration_minutes not in [60, 120]:
+            raise ValueError("Duration must be 60 or 120 minutes")
         
         # Get trainer's availability for the day
         day_of_week = date.weekday()
@@ -866,8 +864,8 @@ class SchedulingService:
         """
         # Validate session duration
         duration_minutes = (end_time - start_time).total_seconds() / 60
-        if duration_minutes not in [60, 90, 120]:
-            raise ValueError("Session duration must be 60, 90, or 120 minutes")
+        if duration_minutes not in [60, 120]:
+            raise ValueError("Session duration must be 60 or 120 minutes")
         
         # Check for conflicts
         if self._has_time_slot_conflict(trainer_id, start_time, end_time):

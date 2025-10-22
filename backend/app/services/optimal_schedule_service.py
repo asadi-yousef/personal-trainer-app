@@ -124,14 +124,14 @@ class OptimalScheduleService:
         # Process each request
         for request in prioritized_requests:
             # Check if this request can be scheduled
-            can_schedule = self._can_schedule_request(request, existing_schedule, approved_requests, preferences)
+            can_schedule, rejection_reason = self._can_schedule_request(request, existing_schedule, approved_requests, preferences)
             
             if can_schedule:
                 # Add to approved requests
                 approved_requests.append(self._create_schedule_entry(request))
             else:
-                # Add to rejected requests
-                rejected_requests.append(self._create_rejection_entry(request))
+                # Add to rejected requests with specific reason
+                rejected_requests.append(self._create_rejection_entry(request, rejection_reason))
         
         # Calculate statistics
         statistics = self._calculate_statistics(approved_requests, rejected_requests, pending_requests)
@@ -186,13 +186,12 @@ class OptimalScheduleService:
         existing_schedule: List[Dict], 
         approved_requests: List[Dict], 
         preferences: Optional[TrainerSchedulingPreferences]
-    ) -> bool:
-        """Check if a request can be scheduled without conflicts."""
+    ) -> Tuple[bool, str]:
+        """Check if a request can be scheduled without conflicts. Returns (can_schedule, rejection_reason)."""
         
         # Get request time
         if not request.start_time or not request.end_time:
-            print(f"DEBUG: Request {request.id} has no start/end time")
-            return False
+            return False, "Request has no start/end time specified"
         
         request_start = request.start_time
         request_end = request.end_time
@@ -206,19 +205,20 @@ class OptimalScheduleService:
             work_end = time.fromisoformat(preferences.work_end_time)
             
             if not (work_start <= request_start.time() <= work_end):
-                return False
+                return False, f"Requested time {request_start.time().strftime('%H:%M')} is outside work hours ({work_start.strftime('%H:%M')} - {work_end.strftime('%H:%M')})"
         
         # Check days off constraint
         if preferences and preferences.days_off_list:
             if request_start.weekday() in preferences.days_off_list:
-                    return False
+                day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                return False, f"Requested day ({day_names[request_start.weekday()]}) is marked as a day off in your preferences"
             
         # Check max sessions per day constraint
         if preferences and preferences.max_sessions_per_day:
             day_sessions = sum(1 for req in approved_requests 
                              if req['start_time'].date() == request_start.date())
             if day_sessions >= preferences.max_sessions_per_day:
-                return False
+                return False, f"Maximum sessions per day limit reached ({preferences.max_sessions_per_day} sessions) for {request_start.date()}"
         
         # Check for conflicts with existing schedule
         min_break = preferences.min_break_minutes if preferences else 15
@@ -226,18 +226,18 @@ class OptimalScheduleService:
         for existing in existing_schedule:
             # Check for direct overlap
             if (request_start < existing['end_time'] and request_end > existing['start_time']):
-                return False
+                return False, f"Direct time conflict with existing {existing['type']} at {existing['start_time'].strftime('%H:%M')} - {existing['end_time'].strftime('%H:%M')}"
             
             # Check break time violations
             # Case 1: New request starts too close to existing session end
             if (request_start >= existing['end_time'] and 
                 request_start - existing['end_time'] < timedelta(minutes=min_break)):
-                return False
+                return False, f"Insufficient break time ({min_break} minutes required) before existing {existing['type']} ending at {existing['end_time'].strftime('%H:%M')}"
             
             # Case 2: New request ends too close to existing session start  
             if (request_end <= existing['start_time'] and
                 existing['start_time'] - request_end < timedelta(minutes=min_break)):
-                return False
+                return False, f"Insufficient break time ({min_break} minutes required) after existing {existing['type']} starting at {existing['start_time'].strftime('%H:%M')}"
         
         # Check for conflicts with other approved requests
         for approved in approved_requests:
@@ -245,24 +245,21 @@ class OptimalScheduleService:
             
             # Check for direct overlap
             if (request_start < approved['end_time'] and request_end > approved['start_time']):
-                print(f"DEBUG: Request {request.id} has direct overlap with approved request")
-                return False
+                return False, f"Direct time conflict with other approved request at {approved['start_time'].strftime('%H:%M')} - {approved['end_time'].strftime('%H:%M')}"
             
             # Check break time violations
             # Case 1: New request starts too close to approved session end
             if (request_start >= approved['end_time'] and 
                 request_start - approved['end_time'] < timedelta(minutes=min_break)):
-                print(f"DEBUG: Request {request.id} starts too close to approved session end (break: {request_start - approved['end_time']})")
-                return False
+                return False, f"Insufficient break time ({min_break} minutes required) before other approved session ending at {approved['end_time'].strftime('%H:%M')}"
             
             # Case 2: New request ends too close to approved session start
             if (request_end <= approved['start_time'] and
                 approved['start_time'] - request_end < timedelta(minutes=min_break)):
-                print(f"DEBUG: Request {request.id} ends too close to approved session start (break: {approved['start_time'] - request_end})")
-                return False
+                return False, f"Insufficient break time ({min_break} minutes required) after other approved session starting at {approved['start_time'].strftime('%H:%M')}"
         
         print(f"DEBUG: Request {request.id} can be scheduled")
-        return True
+        return True, "Fits schedule with no conflicts"
     
     def _create_schedule_entry(self, request: BookingRequest) -> Dict:
         """Create a schedule entry for an approved request."""
@@ -286,7 +283,7 @@ class OptimalScheduleService:
             'reason': 'Fits schedule with no conflicts'
         }
     
-    def _create_rejection_entry(self, request: BookingRequest) -> Dict:
+    def _create_rejection_entry(self, request: BookingRequest, rejection_reason: str) -> Dict:
         """Create a rejection entry for a request that can't be scheduled."""
         client = self.db.query(User).filter(User.id == request.client_id).first()
         
@@ -306,7 +303,7 @@ class OptimalScheduleService:
             'location': request.location,
             'priority_score': getattr(request, 'priority_score', 5.0),
             'recommendation': 'REJECT',
-            'reason': 'Conflicts with existing schedule or constraints'
+            'reason': rejection_reason
         }
     
     def _calculate_statistics(

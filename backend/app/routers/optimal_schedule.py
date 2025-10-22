@@ -14,6 +14,7 @@ from app.schemas.optimal_schedule import (
     OptimalScheduleResponse,
     OptimalScheduleRequest,
     ProposedScheduleEntry,
+    RejectedScheduleEntry,
     OptimalScheduleStatistics
 )
 from app.services.optimal_schedule_service import OptimalScheduleService
@@ -65,6 +66,10 @@ async def generate_my_optimal_schedule(
         proposed_entries=[
             ProposedScheduleEntry(**entry)
             for entry in result['proposed_entries']
+        ],
+        rejected_entries=[
+            RejectedScheduleEntry(**entry)
+            for entry in result['rejected_requests']
         ],
         statistics=OptimalScheduleStatistics(**result['statistics']),
         message=result['message']
@@ -126,6 +131,10 @@ async def generate_optimal_schedule(
         proposed_entries=[
             ProposedScheduleEntry(**entry)
             for entry in result['proposed_entries']
+        ],
+        rejected_entries=[
+            RejectedScheduleEntry(**entry)
+            for entry in result['rejected_requests']
         ],
         statistics=OptimalScheduleStatistics(**result['statistics']),
         message=result['message']

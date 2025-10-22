@@ -29,6 +29,29 @@ class ProposedScheduleEntry(BaseModel):
         from_attributes = True
 
 
+class RejectedScheduleEntry(BaseModel):
+    """Schema for a rejected schedule entry with specific reason"""
+    booking_request_id: int
+    client_id: int
+    client_name: str
+    session_type: str
+    training_type: Optional[str] = None
+    duration_minutes: int
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    slot_ids: List[str] = Field(default_factory=list, description="Empty for rejected requests")
+    is_contiguous: bool = Field(default=False, description="False for rejected requests")
+    preferred_start_date: Optional[datetime] = None
+    special_requests: Optional[str] = None
+    location: Optional[str] = None
+    priority_score: float = Field(default=5.0, ge=0, le=10)
+    recommendation: str = Field(default="REJECT", description="Recommendation status")
+    reason: str = Field(description="Specific reason for rejection")
+    
+    class Config:
+        from_attributes = True
+
+
 class OptimalScheduleStatistics(BaseModel):
     """Statistics about the optimal schedule generation"""
     total_requests: int = Field(description="Total number of booking requests")
@@ -47,6 +70,7 @@ class OptimalScheduleResponse(BaseModel):
     """Response schema for optimal schedule generation"""
     trainer_id: int
     proposed_entries: List[ProposedScheduleEntry]
+    rejected_entries: List[RejectedScheduleEntry] = Field(default_factory=list, description="Rejected requests with specific reasons")
     statistics: OptimalScheduleStatistics
     message: str = Field(description="Human-readable status message")
     
