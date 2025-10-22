@@ -14,6 +14,7 @@ export default function ChatWidget() {
     { role: "assistant", content: "Hi! I can help with trainers, bookings, and payments." },
   ]);
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -25,14 +26,21 @@ export default function ChatWidget() {
   async function sendMessage() {
     const text = input.trim();
     if (!text || sending) return;
+    
     setInput("");
+    setError(null);
     const nextHistory = [...messages, { role: "user" as const, content: text }];
     setMessages(nextHistory);
     setSending(true);
+    
     try {
       const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
       const userRole = storedUser ? (JSON.parse(storedUser)?.role || null) : null;
-      const res = await fetch("http://127.0.0.1:8000/api/chatbot/message", {
+      
+      // Use environment variable or fallback to localhost
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      
+      const res = await fetch(`${apiUrl}/api/chatbot/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -42,10 +50,32 @@ export default function ChatWidget() {
           user_role: userRole,
         }),
       });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${res.status}: ${res.statusText}`);
+      }
+      
       const data = await res.json();
-      setMessages(prev => [...prev, { role: "assistant", content: data.reply || "", suggestions: data.suggestions || [] }]);
+      
+      if (!data.reply) {
+        throw new Error("No response from AI assistant");
+      }
+      
+      setMessages(prev => [...prev, { 
+        role: "assistant", 
+        content: data.reply, 
+        suggestions: data.suggestions || [] 
+      }]);
+      
     } catch (e) {
-      setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I hit a problem." }]);
+      console.error("Chat error:", e);
+      const errorMessage = e instanceof Error ? e.message : "Sorry, I hit a problem.";
+      setError(errorMessage);
+      setMessages(prev => [...prev, { 
+        role: "assistant", 
+        content: `❌ ${errorMessage}. Please try again or contact support.` 
+      }]);
     } finally {
       setSending(false);
     }
@@ -74,7 +104,9 @@ export default function ChatWidget() {
                     "inline-block px-3 py-2 rounded-lg " +
                     (m.role === "user"
                       ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-800")
+                      : m.content.startsWith("❌") 
+                        ? "bg-red-100 text-red-800 border border-red-200"
+                        : "bg-gray-100 text-gray-800")
                   }
                 >
                   {m.content}
@@ -97,7 +129,14 @@ export default function ChatWidget() {
             {sending && (
               <div className="text-left">
                 <span className="inline-block px-3 py-2 rounded-lg bg-gray-100 text-gray-500">
-                  Typing...
+                  🤖 AI is thinking...
+                </span>
+              </div>
+            )}
+            {error && (
+              <div className="text-left">
+                <span className="inline-block px-3 py-2 rounded-lg bg-red-100 text-red-800 border border-red-200">
+                  ⚠️ {error}
                 </span>
               </div>
             )}
@@ -106,18 +145,32 @@ export default function ChatWidget() {
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') sendMessage(); }}
+              onKeyDown={e => { if (e.key === 'Enter' && !sending) sendMessage(); }}
               placeholder="Ask about bookings, trainers, payments..."
               className="flex-1 border rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              disabled={sending}
             />
             <button
-              disabled={sending}
+              disabled={sending || !input.trim()}
               onClick={sendMessage}
-              className="bg-blue-600 text-white px-3 py-2 rounded-md text-sm disabled:opacity-50"
+              className="bg-blue-600 text-white px-3 py-2 rounded-md text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors"
             >
-              Send
+              {sending ? "..." : "Send"}
             </button>
           </div>
+          {error && (
+            <div className="px-3 pb-2">
+              <button
+                onClick={() => {
+                  setError(null);
+                  setMessages(prev => prev.filter(m => !m.content.startsWith("❌")));
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Clear errors and try again
+              </button>
+            </div>
+          )}
         </div>
       )}
     </>

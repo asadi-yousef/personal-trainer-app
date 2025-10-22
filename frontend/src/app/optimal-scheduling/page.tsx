@@ -68,6 +68,17 @@ function OptimalSchedulingPageContent() {
   const [sessionIntensity, setSessionIntensity] = useState<'light' | 'moderate' | 'intense'>('moderate');
   const [equipmentPreference, setEquipmentPreference] = useState<string>('');
 
+  // AI Assistant state
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [showAiAssistant, setShowAiAssistant] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [userProgress, setUserProgress] = useState({
+    hasSelectedTimes: false,
+    hasSetBudget: false,
+    hasChosenTrainer: false,
+    hasSetDuration: false
+  });
+
   useEffect(() => {
     if (!user) {
       router.push('/login');
@@ -89,7 +100,83 @@ function OptimalSchedulingPageContent() {
 
     // Load available trainers
     fetchAvailableTrainers();
-  }, [user, router]);
+    
+    // Update AI suggestions
+    updateUserProgress();
+    setAiSuggestions(getContextualSuggestions());
+  }, [user, router, preferredTimes, maxBudget, selectedTrainer, duration]);
+
+  // AI Assistant functions
+  const getContextualSuggestions = () => {
+    const suggestions = [];
+    
+    // Check user progress and provide contextual help
+    if (!userProgress.hasSelectedTimes && preferredTimes.length === 0) {
+      suggestions.push("💡 Select 2-3 preferred times for better matches");
+      suggestions.push("⏰ Morning slots (8-10 AM) often have better availability");
+    }
+    
+    if (!userProgress.hasSetBudget && maxBudget === null) {
+      suggestions.push("💰 Set a budget range to see more trainer options");
+      suggestions.push("💡 Budget-friendly trainers start at $50/hour");
+    }
+    
+    if (!userProgress.hasSetDuration) {
+      suggestions.push("⏱️ 60-minute sessions are perfect for beginners");
+      suggestions.push("💪 120-minute sessions provide more comprehensive training");
+    }
+    
+    if (selectedTrainer === null && availableTrainers.length > 0) {
+      suggestions.push("👨‍💼 Choose a trainer that matches your goals");
+      suggestions.push("⭐ Check trainer ratings and specialties");
+    }
+    
+    // Add general tips
+    suggestions.push("📅 Try weekdays for more trainer availability");
+    suggestions.push("🎯 Be specific about your fitness goals for better matches");
+    
+    return suggestions;
+  };
+
+  const getStepByStepGuidance = () => {
+    const steps = [
+      {
+        title: "Choose Your Preferred Times",
+        content: "Select 2-3 time slots that work best for you",
+        action: "I'll help you find trainers available at these times",
+        completed: userProgress.hasSelectedTimes
+      },
+      {
+        title: "Set Your Budget",
+        content: "Enter your budget range to see matching trainers",
+        action: "I'll show you trainers within your budget",
+        completed: userProgress.hasSetBudget
+      },
+      {
+        title: "Select Session Duration",
+        content: "Choose between 60 or 120-minute sessions",
+        action: "I'll help you pick the right duration",
+        completed: userProgress.hasSetDuration
+      },
+      {
+        title: "Find Your Perfect Trainer",
+        content: "Browse trainers that match your preferences",
+        action: "I'll help you compare and choose",
+        completed: userProgress.hasChosenTrainer
+      }
+    ];
+    
+    return steps;
+  };
+
+  const updateUserProgress = () => {
+    setUserProgress({
+      hasSelectedTimes: preferredTimes.length > 0,
+      hasSetBudget: maxBudget !== null,
+      hasChosenTrainer: selectedTrainer !== null,
+      hasSetDuration: duration !== null
+    });
+  };
 
   const fetchAvailableTrainers = async () => {
     try {
@@ -316,6 +403,68 @@ function OptimalSchedulingPageContent() {
               : 'Find the best available times across all trainers based on your preferences'
             }
           </p>
+        </div>
+
+        {/* AI Assistant */}
+        <div className="mb-8">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">🤖</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Smart Scheduling Assistant</h3>
+                  <p className="text-sm text-gray-600">I'll help you find the perfect training schedule</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAiAssistant(!showAiAssistant)}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                {showAiAssistant ? 'Hide Tips' : 'Get Help'}
+              </button>
+            </div>
+            
+            {showAiAssistant && (
+              <div className="space-y-4">
+                {/* Step-by-step guidance */}
+                <div className="bg-white rounded-lg p-4 border border-blue-100">
+                  <h4 className="font-semibold text-gray-900 mb-3">📋 Your Progress</h4>
+                  <div className="space-y-2">
+                    {getStepByStepGuidance().map((step, index) => (
+                      <div key={index} className="flex items-center space-x-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${
+                          step.completed ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}>
+                          {step.completed ? '✓' : index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <p className={`font-medium ${step.completed ? 'text-green-700' : 'text-gray-700'}`}>
+                            {step.title}
+                          </p>
+                          <p className="text-sm text-gray-600">{step.content}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Smart suggestions */}
+                <div className="bg-white rounded-lg p-4 border border-blue-100">
+                  <h4 className="font-semibold text-gray-900 mb-3">💡 Smart Tips</h4>
+                  <div className="space-y-2">
+                    {aiSuggestions.slice(0, 4).map((suggestion, index) => (
+                      <div key={index} className="flex items-start space-x-2">
+                        <span className="text-blue-500 mt-1">•</span>
+                        <p className="text-sm text-gray-700">{suggestion}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Selected Trainer Info */}
