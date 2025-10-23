@@ -51,7 +51,7 @@ const mapApiTrainerToComponent = (apiTrainer: any) => {
     availability,
     trainingTypes,
     // Gym information
-    gymName: apiTrainer.gym_name,
+    gymName: apiTrainer.gym_name || (apiTrainer.location_preference === 'customer_choice' ? "Customer's choice" : 'Gym'),
     gymAddress: apiTrainer.gym_address,
     gymCity: apiTrainer.gym_city,
     gymState: apiTrainer.gym_state,
@@ -134,7 +134,7 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
       rating: mappedTrainer.rating,
       price_per_hour: mappedTrainer.pricePerHour,
       training_types: mappedTrainer.trainingTypes,
-      gym_name: mappedTrainer.gymName || 'Gym',
+      gym_name: mappedTrainer.gymName || (apiTrainer.location_preference === 'customer_choice' ? "Customer's choice" : 'Gym'),
       gym_address: mappedTrainer.gymAddress || 'Address not specified'
     }));
     
