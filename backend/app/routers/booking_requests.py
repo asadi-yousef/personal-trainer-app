@@ -49,6 +49,31 @@ async def create_booking_request(
     print(f"  - location_type: {request_data.location_type}")
     print(f"  - location_address: {request_data.location_address}")
     
+    # Calculate session price
+    trainer = db.query(Trainer).filter(Trainer.id == request_data.trainer_id).first()
+    if not trainer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trainer not found"
+        )
+    
+    # Calculate price based on trainer's rates
+    hours = request_data.duration_minutes / 60
+    if trainer.price_per_hour and trainer.price_per_hour > 0:
+        calculated_price = trainer.price_per_hour * hours
+        price_per_hour = trainer.price_per_hour
+    elif trainer.price_per_session and trainer.price_per_session > 0:
+        calculated_price = trainer.price_per_session
+        price_per_hour = trainer.price_per_session / hours if hours > 0 else trainer.price_per_session
+    else:
+        calculated_price = 0
+        price_per_hour = 0
+    
+    print(f"DEBUG: Price calculation for booking request:")
+    print(f"  - Trainer {trainer.id}: price_per_hour={trainer.price_per_hour}, price_per_session={trainer.price_per_session}")
+    print(f"  - Duration: {request_data.duration_minutes} minutes ({hours} hours)")
+    print(f"  - Calculated price: {calculated_price}")
+    
     # Create booking request
     booking_request = BookingRequest(
         client_id=current_user.id,
@@ -71,7 +96,10 @@ async def create_booking_request(
         training_type=request_data.training_type,
         location_type=request_data.location_type,
         location_address=request_data.location_address,
-        expires_at=expires_at
+        expires_at=expires_at,
+        # Price fields
+        price_per_hour=price_per_hour,
+        total_cost=calculated_price
     )
     
     print(f"DEBUG: Created booking request with start_time: {booking_request.start_time}, end_time: {booking_request.end_time}")
@@ -310,12 +338,23 @@ async def approve_booking_request(
         # Calculate the price
         trainer = db.query(Trainer).filter(Trainer.id == request.trainer_id).first()
         hours = request.duration_minutes / 60
-        calculated_price = trainer.price_per_hour * hours if trainer.price_per_hour > 0 else trainer.price_per_session
+        
+        # More robust price calculation
+        if trainer.price_per_hour and trainer.price_per_hour > 0:
+            calculated_price = trainer.price_per_hour * hours
+            price_per_hour = trainer.price_per_hour
+        elif trainer.price_per_session and trainer.price_per_session > 0:
+            calculated_price = trainer.price_per_session
+            price_per_hour = trainer.price_per_session / hours if hours > 0 else trainer.price_per_session
+        else:
+            calculated_price = 0
+            price_per_hour = 0
         
         print(f"DEBUG: Price calculation for booking request {request.id}")
         print(f"DEBUG: Trainer {trainer.id} - price_per_hour: {trainer.price_per_hour}, price_per_session: {trainer.price_per_session}")
         print(f"DEBUG: Duration: {request.duration_minutes} minutes ({hours} hours)")
         print(f"DEBUG: Calculated price: {calculated_price}")
+        print(f"DEBUG: Price per hour to save: {price_per_hour}")
         
         # Create a confirmed booking using client's preferred times
         booking = Booking(
@@ -332,7 +371,7 @@ async def approve_booking_request(
             start_time=start_time,  # Client's preferred start time
             end_time=end_time,      # Client's preferred end time
             total_cost=calculated_price,
-            price_per_hour=trainer.price_per_hour,
+            price_per_hour=price_per_hour,
             training_type=request.training_type or request.session_type,
             location_type=request.location_type,
             location_address=request.location_address,

@@ -126,7 +126,23 @@ class BookingService:
             if not trainer:
                 raise ValueError("Trainer not found or not available")
             
-            # Create booking request
+            # Calculate session price
+            hours = duration_minutes / 60
+            if trainer.price_per_hour and trainer.price_per_hour > 0:
+                calculated_price = trainer.price_per_hour * hours
+                price_per_hour = trainer.price_per_hour
+            elif trainer.price_per_session and trainer.price_per_session > 0:
+                calculated_price = trainer.price_per_session
+                price_per_hour = trainer.price_per_session / hours if hours > 0 else trainer.price_per_session
+            else:
+                calculated_price = 0
+                price_per_hour = 0
+            
+            logger.info(f"Price calculation for booking request:")
+            logger.info(f"  - Trainer {trainer.id}: price_per_hour={trainer.price_per_hour}, price_per_session={trainer.price_per_session}")
+            logger.info(f"  - Duration: {duration_minutes} minutes ({hours} hours)")
+            logger.info(f"  - Calculated price: {calculated_price}")
+            
             # Calculate priority score based on various factors
             priority_score = self._calculate_priority_score(
                 duration_minutes=duration_minutes,
@@ -159,6 +175,9 @@ class BookingService:
                 training_type=training_type,
                 location_type=location_type,
                 location_address=location_address,
+                # Price fields
+                price_per_hour=price_per_hour,
+                total_cost=calculated_price,
                 priority_score=priority_score,
                 status=BookingRequestStatus.PENDING,
                 expires_at=datetime.now() + timedelta(hours=24)  # 24-hour expiration
@@ -302,6 +321,25 @@ class BookingService:
                     )
                 
                 try:
+                    # Get trainer for price calculation
+                    trainer = self.db.query(Trainer).filter(Trainer.id == trainer_id).first()
+                    if not trainer:
+                        raise ValueError("Trainer not found")
+                    
+                    # Calculate price
+                    hours = booking_request.duration_minutes / 60
+                    if trainer.price_per_hour and trainer.price_per_hour > 0:
+                        calculated_price = trainer.price_per_hour * hours
+                        price_per_hour = trainer.price_per_hour
+                    elif trainer.price_per_session and trainer.price_per_session > 0:
+                        calculated_price = trainer.price_per_session
+                        price_per_hour = trainer.price_per_session / hours if hours > 0 else trainer.price_per_session
+                    else:
+                        calculated_price = 0
+                        price_per_hour = 0
+                    
+                    logger.info(f"Price calculation for booking: ${calculated_price} (${price_per_hour}/hour)")
+                    
                     # Step 1: Create the Booking record
                     booking = Booking(
                         client_id=booking_request.client_id,
@@ -313,6 +351,11 @@ class BookingService:
                         start_time=confirmed_start_time,
                         end_time=confirmed_end_time,
                         confirmed_date=confirmed_start_time,
+                        total_cost=calculated_price,
+                        price_per_hour=price_per_hour,
+                        training_type=booking_request.training_type or booking_request.session_type,
+                        location_type=booking_request.location_type,
+                        location_address=booking_request.location_address,
                         status=BookingStatus.CONFIRMED,
                         is_recurring=booking_request.is_recurring,
                         recurring_pattern=booking_request.recurring_pattern
@@ -358,10 +401,12 @@ class BookingService:
                         f"Successfully updated {updated_count} slot(s) atomically for Booking {booking.id}"
                     )
                     
-                    # Step 4: Update booking request status
+                    # Step 4: Update booking request status and price
                     booking_request.status = BookingRequestStatus.APPROVED
                     booking_request.confirmed_date = confirmed_start_time
                     booking_request.notes = notes
+                    booking_request.total_cost = calculated_price
+                    booking_request.price_per_hour = price_per_hour
                     
                     # Transaction will be committed by atomic_booking context manager
                     logger.info(

@@ -335,6 +335,11 @@ export default function BookingRequestManager() {
                               : 'Not specified'
                             }
                           </p>
+                          {request.total_cost && (
+                            <p className="text-sm font-semibold text-indigo-800">
+                              Cost: ${request.total_cost.toFixed(2)}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -387,6 +392,9 @@ export default function BookingRequestManager() {
                     <div><span className="font-medium">Duration:</span> {selectedRequest.duration_minutes} min</div>
                     <div><span className="font-medium">Location:</span> {selectedRequest.location}</div>
                     <div><span className="font-medium">Recurring:</span> {selectedRequest.is_recurring ? 'Yes' : 'No'}</div>
+                    {selectedRequest.total_cost && (
+                      <div className="col-span-2"><span className="font-medium">Total Cost:</span> ${selectedRequest.total_cost.toFixed(2)}</div>
+                    )}
                   </div>
                   {selectedRequest.start_time && selectedRequest.end_time && (
                     <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">

@@ -36,7 +36,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -78,7 +78,7 @@ async def health_check(db: Session = Depends(get_db)):
 
 
 # Include routers
-from app.routers import auth, trainers, sessions, availability, bookings, programs, messages, session_tracking, analytics, time_slots, booking_requests, trainer_registration, booking_management, payments, optimal_schedule, trainer_profile, scheduling_preferences, chatbot, meal_planning
+from app.routers import auth, trainers, sessions, availability, bookings, programs, messages, session_tracking, analytics, time_slots, booking_requests, trainer_registration, booking_management, payments, optimal_schedule, trainer_profile, scheduling_preferences, chatbot, meal_planning, admin_auth, admin_management
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(trainers.router, prefix="/api/trainers", tags=["Trainers"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
@@ -98,12 +98,39 @@ app.include_router(scheduling_preferences.router, tags=["Scheduling Preferences"
 app.include_router(optimal_schedule.router, prefix="/api", tags=["Optimal Schedule"])  # Provides /api/trainer/me/optimal-schedule endpoint
 app.include_router(chatbot.router, prefix="/api", tags=["Chatbot"])  # /api/chatbot/message
 app.include_router(meal_planning.router, prefix="/api", tags=["Meal Planning"])  # /api/meal-plan
+app.include_router(admin_auth.router, tags=["Admin Authentication"])  # /api/admin/login, /api/admin/me
+app.include_router(admin_management.router, tags=["Admin Management"])  # /api/admin/dashboard/stats, /api/admin/users
 
 # TODO: Add more routers as we build them
 # from app.routers import users, programs, messages
 # app.include_router(users.router, prefix="/api/users", tags=["Users"])
 # app.include_router(programs.router, prefix="/api/programs", tags=["Programs"])
 # app.include_router(messages.router, prefix="/api/messages", tags=["Messages"])
+
+
+@app.get("/api/cors-test")
+async def cors_test():
+    """Test CORS configuration"""
+    return {"message": "CORS is working!", "origin": "http://localhost:3000"}
+
+@app.get("/api/admin/test")
+async def admin_test():
+    """Test admin endpoint without authentication"""
+    return {"message": "Admin endpoint is accessible", "cors": "working"}
+
+@app.options("/api/admin/{path:path}")
+async def cors_preflight(path: str):
+    """CORS preflight handler for all admin endpoints"""
+    return JSONResponse(
+        status_code=200,
+        content={"message": "CORS preflight successful"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+        }
+    )
 
 
 if __name__ == "__main__":

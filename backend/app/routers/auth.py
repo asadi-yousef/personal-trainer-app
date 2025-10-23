@@ -106,11 +106,13 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Reactivate user on successful login
+    # Check if user account is active
     if not user.is_active:
-        user.is_active = True
-        db.commit()
-        db.refresh(user)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account has been deactivated. Please contact support.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(

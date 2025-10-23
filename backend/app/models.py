@@ -1113,3 +1113,28 @@ class Payment(Base):
     booking = relationship("Booking", back_populates="payments")
     client = relationship("User", foreign_keys=[client_id])
     trainer = relationship("Trainer", back_populates="payments")
+
+
+class AdminLevel(str, enum.Enum):
+    """Admin level enumeration"""
+    SUPER_ADMIN = "super_admin"
+    MODERATOR = "moderator"
+    VIEWER = "viewer"
+
+
+class AdminUser(Base):
+    """Admin users table for platform administration"""
+    __tablename__ = "admin_users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    email = Column(String(100), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    admin_level = Column(Enum(AdminLevel), default=AdminLevel.VIEWER, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_by = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
+    
+    # Relationships
+    creator = relationship("AdminUser", remote_side=[id])

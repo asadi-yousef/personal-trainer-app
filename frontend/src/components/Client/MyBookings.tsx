@@ -74,6 +74,7 @@ export default function MyBookings() {
       
       // Add confirmed bookings
       if (bookingsResponse.status === 'fulfilled' && bookingsResponse.value?.bookings) {
+        console.log('DEBUG: Confirmed bookings data:', bookingsResponse.value.bookings);
         allBookings = [...bookingsResponse.value.bookings];
       }
       
@@ -211,6 +212,12 @@ export default function MyBookings() {
   };
 
   const handlePayNow = (booking: Booking) => {
+    console.log('DEBUG: Booking data for payment:', {
+      id: booking.id,
+      total_cost: booking.total_cost,
+      session_type: booking.session_type,
+      duration_minutes: booking.duration_minutes
+    });
     setBookingToPay(booking);
     setShowPaymentModal(true);
   };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth, ProtectedRoute } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { bookings, bookingManagement, trainers } from '../../lib/api';
@@ -79,6 +79,31 @@ function OptimalSchedulingPageContent() {
     hasSetDuration: false
   });
 
+  // Define fetchAvailableTrainers before using it
+  const fetchAvailableTrainers = useCallback(async () => {
+    // Prevent multiple simultaneous calls
+    if (loadingTrainers) return;
+    
+    try {
+      setLoadingTrainers(true);
+      const response = await trainers.getAll();
+      console.log('DEBUG: Fetched trainers:', response.trainers);
+      response.trainers.forEach((trainer, index) => {
+        console.log(`DEBUG: Trainer ${index}:`, {
+          id: trainer.id,
+          name: trainer.user_name,
+          training_types: trainer.training_types
+        });
+      });
+      setAvailableTrainers(response.trainers || []);
+    } catch (err) {
+      console.error('Failed to fetch trainers:', err);
+      setAvailableTrainers([]); // Set empty array on error to prevent undefined issues
+    } finally {
+      setLoadingTrainers(false);
+    }
+  }, [loadingTrainers]);
+
   useEffect(() => {
     if (!user) {
       router.push('/login');
@@ -100,11 +125,15 @@ function OptimalSchedulingPageContent() {
 
     // Load available trainers
     fetchAvailableTrainers();
-    
-    // Update AI suggestions
-    updateUserProgress();
-    setAiSuggestions(getContextualSuggestions());
-  }, [user, router, preferredTimes, maxBudget, selectedTrainer, duration]);
+  }, [user, fetchAvailableTrainers]); // Include fetchAvailableTrainers in dependencies
+
+  // Separate useEffect for progress updates
+  useEffect(() => {
+    if (user) {
+      updateUserProgress();
+      setAiSuggestions(getContextualSuggestions());
+    }
+  }, [preferredTimes, maxBudget, selectedTrainer, duration, user]);
 
   // AI Assistant functions
   const getContextualSuggestions = () => {
@@ -176,26 +205,6 @@ function OptimalSchedulingPageContent() {
       hasChosenTrainer: selectedTrainer !== null,
       hasSetDuration: duration !== null
     });
-  };
-
-  const fetchAvailableTrainers = async () => {
-    try {
-      setLoadingTrainers(true);
-      const response = await trainers.getAll();
-      console.log('DEBUG: Fetched trainers:', response.trainers);
-      response.trainers.forEach((trainer, index) => {
-        console.log(`DEBUG: Trainer ${index}:`, {
-          id: trainer.id,
-          name: trainer.user_name,
-          training_types: trainer.training_types
-        });
-      });
-      setAvailableTrainers(response.trainers || []);
-    } catch (err) {
-      console.error('Failed to fetch trainers:', err);
-    } finally {
-      setLoadingTrainers(false);
-    }
   };
 
   const handleFindOptimalSchedule = async () => {

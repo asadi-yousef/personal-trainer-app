@@ -101,6 +101,15 @@ export default function DirectBooking() {
       const startDateTime = new Date(y, (m - 1), d, sh || 0, sm || 0, 0);
       const endDateTime = new Date(y, (m - 1), d, eh || 0, em || 0, 0);
       
+      // Create timezone-aware datetime strings
+      const formatDateTime = (date: Date) => {
+        // Get timezone offset in minutes and convert to hours
+        const offset = -date.getTimezoneOffset() / 60;
+        const offsetStr = offset >= 0 ? `+${offset.toString().padStart(2, '0')}:00` : `${offset.toString().padStart(2, '0')}:00`;
+        
+        return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}T${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:00${offsetStr}`;
+      };
+      
       // Create a booking request for the specific time slot
       const bookingRequest = {
         trainer_id: selectedTrainer.id,
@@ -108,12 +117,12 @@ export default function DirectBooking() {
         duration_minutes: slot.duration_minutes || durationMinutes,
         location: selectedTrainer.gym_name || (selectedTrainer.location_preference === 'customer_choice' ? "Customer's choice" : 'Gym Studio'),
         special_requests: 'Direct booking from available slots',
-        // Use local ISO formatting to avoid timezone shifts in backend/UI
-        preferred_start_date: `${startDateTime.getFullYear()}-${String(startDateTime.getMonth()+1).padStart(2,'0')}-${String(startDateTime.getDate()).padStart(2,'0')}T${String(startDateTime.getHours()).padStart(2,'0')}:${String(startDateTime.getMinutes()).padStart(2,'0')}:00`,
-        preferred_end_date: `${endDateTime.getFullYear()}-${String(endDateTime.getMonth()+1).padStart(2,'0')}-${String(endDateTime.getDate()).padStart(2,'0')}T${String(endDateTime.getHours()).padStart(2,'0')}:${String(endDateTime.getMinutes()).padStart(2,'0')}:00`,
+        // Use timezone-aware datetime strings
+        preferred_start_date: formatDateTime(startDateTime),
+        preferred_end_date: formatDateTime(endDateTime),
         // Include explicit start/end for trainer dashboard formats
-        start_time: `${startDateTime.getFullYear()}-${String(startDateTime.getMonth()+1).padStart(2,'0')}-${String(startDateTime.getDate()).padStart(2,'0')}T${String(startDateTime.getHours()).padStart(2,'0')}:${String(startDateTime.getMinutes()).padStart(2,'0')}:00`,
-        end_time: `${endDateTime.getFullYear()}-${String(endDateTime.getMonth()+1).padStart(2,'0')}-${String(endDateTime.getDate()).padStart(2,'0')}T${String(endDateTime.getHours()).padStart(2,'0')}:${String(endDateTime.getMinutes()).padStart(2,'0')}:00`,
+        start_time: formatDateTime(startDateTime),
+        end_time: formatDateTime(endDateTime),
         preferred_times: [slot.start_time],
         allow_weekends: true,
         allow_evenings: true,

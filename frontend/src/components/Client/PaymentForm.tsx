@@ -20,6 +20,9 @@ export default function PaymentForm({ booking, onSuccess, onCancel }: PaymentFor
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Debug logging
+  console.log('DEBUG: PaymentForm received booking data:', booking);
+  
   // Form state
   const [cardNumber, setCardNumber] = useState('');
   const [cardholderName, setCardholderName] = useState('');
@@ -156,7 +159,9 @@ export default function PaymentForm({ booking, onSuccess, onCancel }: PaymentFor
           )}
           
           <div className="text-gray-600 text-lg">Total Amount:</div>
-          <div className="font-bold text-lg text-indigo-600">${(booking.total_cost || 0).toFixed(2)}</div>
+          <div className="font-bold text-lg text-indigo-600">
+            ${(booking.total_cost && booking.total_cost > 0) ? booking.total_cost.toFixed(2) : '0.00'}
+          </div>
         </div>
       </div>
 
@@ -175,6 +180,24 @@ export default function PaymentForm({ booking, onSuccess, onCancel }: PaymentFor
           </div>
         </div>
       </div>
+
+      {/* Debug warning for zero cost */}
+      {(!booking.total_cost || booking.total_cost === 0) && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start">
+            <svg className="h-5 w-5 text-red-400 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <div>
+              <h4 className="font-medium text-red-900 mb-1">Price Issue Detected</h4>
+              <p className="text-red-800 text-sm">
+                The session cost is showing as $0.00. This might be a pricing configuration issue. 
+                Please contact support if this is unexpected.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
@@ -355,7 +378,7 @@ export default function PaymentForm({ booking, onSuccess, onCancel }: PaymentFor
             disabled={loading}
             className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
-            {loading ? 'Processing...' : `Pay $${booking.total_cost.toFixed(2)}`}
+            {loading ? 'Processing...' : `Pay $${(booking.total_cost && booking.total_cost > 0) ? booking.total_cost.toFixed(2) : '0.00'}`}
           </button>
         </div>
       </form>
