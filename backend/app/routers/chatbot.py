@@ -7,9 +7,18 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 from app.config import settings
+import requests
+import os
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
 
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
+
+# Groq API setup
+GROQ_API_KEY = os.getenv("GROQ_API_KEY") or "your-groq-api-key-here"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 
 class ChatMessage(BaseModel):
@@ -287,16 +296,12 @@ def _fallback_reply(message: str, context: Optional[str], user_role: Optional[st
 
 @router.post("/message", response_model=ChatResponse)
 async def chat_message(payload: ChatRequest) -> ChatResponse:
-    # If no OpenAI key configured, return a simple helpful fallback
-    if not settings.openai_api_key:
+    # If no Groq API key configured, return a simple helpful fallback
+    if not GROQ_API_KEY or GROQ_API_KEY == "your-groq-api-key-here":
         return _fallback_reply(payload.message, payload.context, payload.user_role)
 
-    # Attempt OpenAI response; fail gracefully to fallback on any error
+    # Attempt Groq API response; fail gracefully to fallback on any error
     try:
-        # Lazy import to avoid hard dependency when no key is set
-        from openai import OpenAI
-
-        client = OpenAI(api_key=settings.openai_api_key)
         messages = [{"role": "system", "content": (
             "You are FitConnect's AI assistant for a personal trainer booking platform. "
             "You have deep knowledge of this specific platform and its features:\n\n"
@@ -334,25 +339,36 @@ async def chat_message(payload: ChatRequest) -> ChatResponse:
 
         messages.append({"role": "user", "content": payload.message})
 
-        completion = client.chat.completions.create(
-            model=settings.openai_model,
-            messages=messages,
-            temperature=0.4,
-            max_tokens=300,
-        )
+        # Call Groq API
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "llama-3.1-8b-instant",  # Current Groq model
+            "messages": messages,
+            "temperature": 0.4,
+            "max_tokens": 300
+        }
 
-        reply = (completion.choices[0].message.content or "").strip()
+        response = requests.post(f"{GROQ_BASE_URL}/chat/completions", headers=headers, json=data)
+        response.raise_for_status()
+        
+        result = response.json()
+        reply = (result["choices"][0]["message"]["content"] or "").strip()
+        
         if not reply:
             return _fallback_reply(payload.message, payload.context, payload.user_role)
         return ChatResponse(
             reply=reply,
-            source="openai",
+            source="groq",
             suggestions=_suggestions_for(payload.message, payload.context, payload.user_role),
         )
 
     except Exception as e:
         # Log the error for debugging
-        print(f"OpenAI API error: {e}")
+        print(f"Groq API error: {e}")
         return _fallback_reply(payload.message, payload.context, payload.user_role)
 
 

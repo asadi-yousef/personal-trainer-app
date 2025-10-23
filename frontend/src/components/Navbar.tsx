@@ -46,12 +46,14 @@ export default function Navbar() {
   const navLinks = isAuthenticated && user ? [
     { href: '/', label: 'Home' },
     { href: '/trainers', label: 'Trainers' },
+    { href: '/meal-planner', label: 'Meal Planner' },
     ...(user.role === 'client' ? [{ href: '/client', label: 'My Dashboard' }] : []),
     ...(user.role === 'trainer' ? [{ href: '/trainer', label: 'Trainer Portal' }] : []),
     ...(user.role === 'admin' ? [{ href: '/admin', label: 'Admin Portal' }] : []),
   ] : [
     { href: '/', label: 'Home' },
     { href: '/trainers', label: 'Trainers' },
+    { href: '/meal-planner', label: 'Meal Planner' },
   ];
 
   const isActive = (href: string) => {

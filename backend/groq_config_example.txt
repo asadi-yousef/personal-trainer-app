@@ -1,0 +1,16 @@
+# Groq API Configuration
+# Add this to your .env file in the backend directory:
+
+GROQ_API_KEY=your-groq-api-key-here
+
+# To get a Groq API key:
+# 1. Go to https://console.groq.com/
+# 2. Sign up for a free account
+# 3. Create an API key
+# 4. Replace "your-groq-api-key-here" with your actual API key
+
+# Example .env file content:
+# GROQ_API_KEY=gsk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+# OPENAI_API_KEY=your-openai-api-key-here
+# DATABASE_URL=sqlite:///./fitconnect.db
+# SECRET_KEY=your-secret-key-here
