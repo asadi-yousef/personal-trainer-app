@@ -112,6 +112,7 @@ class SmartBookingRequest(BaseModel):
     latest_date: datetime
     preferred_times: Optional[List[str]] = None
     avoid_times: Optional[List[str]] = None  # Times to avoid
+    preferred_days: Optional[List[int]] = None  # Days of week (0=Sunday, 6=Saturday)
     
     # Optimization preferences
     prioritize_convenience: bool = True  # Prioritize convenient times

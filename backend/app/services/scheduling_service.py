@@ -192,6 +192,13 @@ class SchedulingService:
             if not booking_request.allow_evenings and slot.start_time.hour >= 18:
                 continue
             
+            # Check preferred days (if specified)
+            if hasattr(booking_request, 'preferred_days') and booking_request.preferred_days:
+                # Convert Python weekday (0=Monday) to our format (0=Sunday)
+                slot_weekday = (slot.start_time.weekday() + 1) % 7
+                if slot_weekday not in booking_request.preferred_days:
+                    continue
+            
             filtered_slots.append(slot)
         
         return filtered_slots
@@ -259,6 +266,18 @@ class SchedulingService:
             else:
                 # No preferred times specified, give moderate score
                 score += 20.0
+            
+            # Day preference scoring (0-20 points)
+            if hasattr(booking_request, 'preferred_days') and booking_request.preferred_days:
+                # Convert Python weekday (0=Monday) to our format (0=Sunday)
+                slot_weekday = (start_time.weekday() + 1) % 7
+                if slot_weekday in booking_request.preferred_days:
+                    score += 20.0  # Perfect match for preferred day
+                else:
+                    score += 5.0   # Small bonus for any available day
+            else:
+                # No preferred days specified, give moderate score
+                score += 10.0
             
             # Convenience scoring - time of day (0-20 points)
             hour = start_time.hour

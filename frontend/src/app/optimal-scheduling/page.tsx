@@ -51,6 +51,7 @@ function OptimalSchedulingPageContent() {
   // Form state
   const [preferredTimes, setPreferredTimes] = useState<string[]>([]);
   const [avoidTimes, setAvoidTimes] = useState<string[]>([]);
+  const [preferredDays, setPreferredDays] = useState<number[]>([]);
   const [allowWeekends, setAllowWeekends] = useState(true);
   const [allowEvenings, setAllowEvenings] = useState(true);
   const [duration, setDuration] = useState(60);
@@ -218,6 +219,7 @@ function OptimalSchedulingPageContent() {
         session_type: 'Personal Training',
         preferred_times: preferredTimes,
         avoid_times: avoidTimes,
+        preferred_days: preferredDays,
         allow_weekends: allowWeekends,
         allow_evenings: allowEvenings,
         duration_minutes: duration,
@@ -394,6 +396,16 @@ function OptimalSchedulingPageContent() {
     }
   };
 
+  const addDayPreference = (day: number) => {
+    if (!preferredDays.includes(day)) {
+      setPreferredDays(prev => [...prev, day]);
+    }
+  };
+
+  const removeDayPreference = (day: number) => {
+    setPreferredDays(prev => prev.filter(d => d !== day));
+  };
+
   if (!user) {
     return null;
   }
@@ -510,7 +522,6 @@ function OptimalSchedulingPageContent() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Training Type
                 </label>
-                {console.log('DEBUG: selectedTrainer.training_types:', selectedTrainer.training_types)}
                 <select
                   value={selectedTrainingType}
                   onChange={(e) => setSelectedTrainingType(e.target.value)}
@@ -694,6 +705,57 @@ function OptimalSchedulingPageContent() {
                       </button>
                     </span>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Preferred Days */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Preferred Days of Week
+              </label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {[
+                  { day: 0, name: 'Sunday' },
+                  { day: 1, name: 'Monday' },
+                  { day: 2, name: 'Tuesday' },
+                  { day: 3, name: 'Wednesday' },
+                  { day: 4, name: 'Thursday' },
+                  { day: 5, name: 'Friday' },
+                  { day: 6, name: 'Saturday' }
+                ].map(({ day, name }) => (
+                  <button
+                    key={day}
+                    onClick={() => addDayPreference(day)}
+                    className={`px-3 py-1 text-sm rounded-md border ${
+                      preferredDays.includes(day)
+                        ? 'bg-green-100 border-green-300 text-green-800'
+                        : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+              {preferredDays.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {preferredDays.map(day => {
+                    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    return (
+                      <span
+                        key={day}
+                        className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800"
+                      >
+                        {dayNames[day]}
+                        <button
+                          onClick={() => removeDayPreference(day)}
+                          className="ml-1 text-green-600 hover:text-green-800"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
                 </div>
               )}
             </div>
