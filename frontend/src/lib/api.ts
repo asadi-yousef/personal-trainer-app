@@ -127,7 +127,18 @@ class ApiClient {
       throw apiError;
     }
 
-    return response.json();
+    // Handle 204 No Content responses (like DELETE requests)
+    if (response.status === 204) {
+      return null;
+    }
+
+    // Only try to parse JSON if there's content
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    } else {
+      return response.text();
+    }
   }
 
   // HTTP method shortcuts

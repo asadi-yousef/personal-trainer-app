@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bookingManagement, payments } from '../../lib/api';
+import { bookingManagement, bookingRequests, payments } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import PaymentForm from './PaymentForm';
 
@@ -47,10 +47,6 @@ export default function MyBookings() {
   // Cancellation form state
   const [cancellationReason, setCancellationReason] = useState('');
 
-  // Rescheduling form state
-  const [newStartTime, setNewStartTime] = useState('');
-  const [newEndTime, setNewEndTime] = useState('');
-  const [rescheduleReason, setRescheduleReason] = useState('');
 
   // Payment state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -140,16 +136,28 @@ export default function MyBookings() {
     setError(null);
 
     try {
+      console.log('DEBUG: Cancelling booking:', {
+        id: selectedBooking.id,
+        status: selectedBooking.status,
+        type: selectedBooking.status === 'pending' ? 'booking request' : 'confirmed booking'
+      });
+
       // Handle cancellation based on booking status
       if (selectedBooking.status === 'pending') {
         // Cancel booking request
-        await bookingManagement.cancelBookingRequest(selectedBooking.id);
+        console.log('DEBUG: Calling cancelBookingRequest for ID:', selectedBooking.id);
+        console.log('DEBUG: User auth state:', { user: user?.id, role: user?.role });
+        console.log('DEBUG: Token in localStorage:', localStorage.getItem('access_token') ? 'Present' : 'Missing');
+        await bookingRequests.cancel(selectedBooking.id);
+        console.log('DEBUG: Booking request cancelled successfully');
       } else {
         // Cancel confirmed booking
+        console.log('DEBUG: Calling cancelBooking for ID:', selectedBooking.id);
         await bookingManagement.cancelBooking({
           booking_id: selectedBooking.id,
           cancellation_reason: cancellationReason
         });
+        console.log('DEBUG: Confirmed booking cancelled successfully');
       }
 
       // Update the booking status in the list
@@ -162,54 +170,21 @@ export default function MyBookings() {
       setSelectedBooking(null);
       setCancellationReason('');
       
+      console.log('DEBUG: Booking cancelled and UI updated');
+      
     } catch (err: any) {
       console.error('Failed to cancel booking:', err);
+      console.error('Error details:', {
+        message: err.message,
+        status: err.status,
+        response: err.response
+      });
       setError(err.message || 'Failed to cancel booking');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleReschedule = async () => {
-    if (!selectedBooking || !newStartTime || !newEndTime) {
-      setError('Please select new start and end times');
-      return;
-    }
-
-    setActionLoading(true);
-    setError(null);
-
-    try {
-      await bookingManagement.rescheduleBooking({
-        booking_id: selectedBooking.id,
-        new_start_time: new Date(newStartTime).toISOString(),
-        new_end_time: new Date(newEndTime).toISOString(),
-        reason: rescheduleReason
-      });
-
-      // Update the booking times in the list
-      setBookings(prev => prev.map(booking => 
-        booking.id === selectedBooking.id 
-          ? { 
-              ...booking, 
-              start_time: newStartTime,
-              end_time: newEndTime
-            }
-          : booking
-      ));
-      
-      setSelectedBooking(null);
-      setNewStartTime('');
-      setNewEndTime('');
-      setRescheduleReason('');
-      
-    } catch (err: any) {
-      console.error('Failed to reschedule booking:', err);
-      setError(err.message || 'Failed to reschedule booking');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   const handlePayNow = (booking: Booking) => {
     console.log('DEBUG: Booking data for payment:', {
@@ -399,18 +374,10 @@ export default function MyBookings() {
                 <div className="ml-6 flex flex-col space-y-2">
                   {booking.can_cancel && (
                     <button
-                      onClick={() => setSelectedBooking({ ...booking, action: 'cancel' } as any)}
+                      onClick={() => setSelectedBooking(booking)}
                       className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-sm"
                     >
                       Cancel
-                    </button>
-                  )}
-                  {booking.can_reschedule && (
-                    <button
-                      onClick={() => setSelectedBooking({ ...booking, action: 'reschedule' } as any)}
-                      className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 text-sm"
-                    >
-                      Reschedule
                     </button>
                   )}
                   {booking.status.toLowerCase() === 'confirmed' && !booking.has_payment && (
@@ -439,7 +406,7 @@ export default function MyBookings() {
           <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {selectedBooking.action === 'cancel' ? 'Cancel Booking' : 'Reschedule Booking'}
+                Cancel Booking
               </h3>
 
               <div className="space-y-4">
@@ -454,61 +421,18 @@ export default function MyBookings() {
                   </div>
                 </div>
 
-                {selectedBooking.action === 'cancel' ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Reason for Cancellation
-                    </label>
-                    <textarea
-                      value={cancellationReason}
-                      onChange={(e) => setCancellationReason(e.target.value)}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Please provide a reason for cancelling this booking..."
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          New Start Time
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={newStartTime}
-                          onChange={(e) => setNewStartTime(e.target.value)}
-                          min={getTodayDateTime()}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          New End Time
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={newEndTime}
-                          onChange={(e) => setNewEndTime(e.target.value)}
-                          min={newStartTime || getTodayDateTime()}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Reason for Rescheduling (Optional)
-                      </label>
-                      <textarea
-                        value={rescheduleReason}
-                        onChange={(e) => setRescheduleReason(e.target.value)}
-                        rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="Please provide a reason for rescheduling..."
-                      />
-                    </div>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Reason for Cancellation
+                  </label>
+                  <textarea
+                    value={cancellationReason}
+                    onChange={(e) => setCancellationReason(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Please provide a reason for cancelling this booking..."
+                  />
+                </div>
 
                 {/* Action Buttons */}
                 <div className="flex space-x-4 pt-4">
@@ -519,18 +443,11 @@ export default function MyBookings() {
                     Cancel
                   </button>
                   <button
-                    onClick={selectedBooking.action === 'cancel' ? handleCancel : handleReschedule}
-                    disabled={actionLoading || (selectedBooking.action === 'cancel' ? !cancellationReason.trim() : !newStartTime || !newEndTime)}
-                    className={`flex-1 px-4 py-2 rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed ${
-                      selectedBooking.action === 'cancel'
-                        ? 'bg-red-600 hover:bg-red-700'
-                        : 'bg-yellow-600 hover:bg-yellow-700'
-                    }`}
+                    onClick={handleCancel}
+                    disabled={actionLoading || !cancellationReason.trim()}
+                    className="flex-1 px-4 py-2 rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700"
                   >
-                    {actionLoading 
-                      ? (selectedBooking.action === 'cancel' ? 'Cancelling...' : 'Rescheduling...')
-                      : (selectedBooking.action === 'cancel' ? 'Cancel Booking' : 'Reschedule Booking')
-                    }
+                    {actionLoading ? 'Cancelling...' : 'Cancel Booking'}
                   </button>
                 </div>
               </div>

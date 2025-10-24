@@ -51,14 +51,14 @@ const mapApiTrainerToComponent = (apiTrainer: any) => {
     availability,
     trainingTypes,
     // Gym information
-    gymName: apiTrainer.gym_name || (apiTrainer.location_preference === 'customer_choice' ? "Customer's choice" : 'Gym'),
+    gymName: apiTrainer.location_preference === 'customer_choice' ? "Customer's choice" : (apiTrainer.gym_name || 'Gym'),
     gymAddress: apiTrainer.gym_address,
     gymCity: apiTrainer.gym_city,
     gymState: apiTrainer.gym_state,
     gymZipCode: apiTrainer.gym_zip_code,
     gymPhone: apiTrainer.gym_phone,
     // Profile completion
-    profileComplete: apiTrainer.profile_completion_status === 'COMPLETE',
+    profileComplete: apiTrainer.profile_completion_status === 'complete',
     experienceYears: apiTrainer.experience_years || 0,
     certifications: apiTrainer.certifications
   };
@@ -268,12 +268,6 @@ export default function TrainerCard({ trainer }: TrainerCardProps) {
                 <span className="text-gray-600 text-sm ml-1">/hour</span>
               </div>
             </div>
-            <button 
-              onClick={handleViewProfile}
-              className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-smooth focus-ring"
-            >
-              View Profile
-            </button>
           </div>
           
           {/* Smart Scheduling Actions - Only show for clients */}

@@ -31,7 +31,14 @@ export default function SessionStatus() {
     try {
       setLoading(true);
       const response = await sessions.getAll({ upcoming_only: true });
-      setUpcomingSessions(Array.isArray(response) ? response : []);
+      const allSessions = Array.isArray(response) ? response : [];
+      
+      // Filter for confirmed sessions only
+      const confirmedSessions = allSessions.filter(session => 
+        session.status && session.status.toLowerCase() === 'confirmed'
+      );
+      
+      setUpcomingSessions(confirmedSessions);
     } catch (err: any) {
       console.error('Failed to fetch sessions:', err);
       setError('Failed to load sessions');
@@ -187,6 +194,7 @@ export default function SessionStatus() {
     </div>
   );
 }
+
 
 
 

@@ -61,6 +61,9 @@ class TrainerResponse(TrainerBase):
     # Profile completion status
     profile_completion_status: Optional[str] = None
     
+    # Location preference
+    location_preference: Optional[str] = None
+    
     # User information
     user_name: str
     user_email: str

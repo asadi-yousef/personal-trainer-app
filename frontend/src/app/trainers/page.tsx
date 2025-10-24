@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Specialty, Availability, Trainer } from '../../lib/data';
+import { useState, useEffect } from 'react';
+import { Trainer } from '../../lib/data';
 import TrainerCard from '../../components/Trainers/TrainerCard';
-import Filters from '../../components/Trainers/Filters';
 import Pagination from '../../components/Trainers/Pagination';
 import { trainers } from '../../lib/api';
-import { ProtectedRoute, useAuth } from '../../contexts/AuthContext';
+import { ProtectedRoute } from '../../contexts/AuthContext';
 
 /**
  * Trainers page content component
@@ -17,8 +16,6 @@ function TrainersPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [totalTrainers, setTotalTrainers] = useState(0);
-  const [selectedSpecialty, setSelectedSpecialty] = useState<Specialty | 'All'>('All');
-  const [selectedAvailability, setSelectedAvailability] = useState<Availability | 'All'>('All');
   const [currentPage, setCurrentPage] = useState(1);
   const trainersPerPage = 6;
 
@@ -28,18 +25,10 @@ function TrainersPageContent() {
       setLoading(true);
       setError(null);
       
-      const params: any = {
+      const params = {
         page: currentPage,
         size: trainersPerPage,
       };
-
-      // Add filters if not 'All'
-      if (selectedSpecialty !== 'All') {
-        params.specialty = selectedSpecialty;
-      }
-      if (selectedAvailability !== 'All') {
-        params.availability = selectedAvailability;
-      }
 
       const response = await trainers.getAll(params);
       setTrainersData(response.trainers);
@@ -55,7 +44,7 @@ function TrainersPageContent() {
 
   useEffect(() => {
     fetchTrainers();
-  }, [currentPage, selectedSpecialty, selectedAvailability]);
+  }, [currentPage]);
 
   // Use safe feather icon replacement
 
@@ -73,10 +62,6 @@ function TrainersPageContent() {
     initAOS();
   }, []);
 
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedSpecialty, selectedAvailability]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -97,7 +82,7 @@ function TrainersPageContent() {
                 <h3 className="text-lg font-semibold text-indigo-900">Smart Scheduling Available</h3>
               </div>
               <p className="text-indigo-700 text-sm mb-4">
-                Our AI-powered algorithm helps you find the optimal training times that work perfectly with your schedule and your trainer's availability.
+                Our algorithm helps you find the optimal training times that work perfectly with your schedule and your trainer's availability.
               </p>
               <button 
                 onClick={() => window.location.href = '/optimal-scheduling'}
@@ -110,17 +95,6 @@ function TrainersPageContent() {
         </div>
       </section>
 
-      {/* Filters Section */}
-      <section className="py-8 bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Filters
-            selectedSpecialty={selectedSpecialty}
-            selectedAvailability={selectedAvailability}
-            onSpecialtyChange={setSelectedSpecialty}
-            onAvailabilityChange={setSelectedAvailability}
-          />
-        </div>
-      </section>
 
       {/* Trainers Grid */}
       <section className="py-12">

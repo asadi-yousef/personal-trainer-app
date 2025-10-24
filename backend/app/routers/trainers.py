@@ -156,6 +156,8 @@ async def get_trainers(
             gym_phone=trainer.gym_phone,
             # Profile completion status
             profile_completion_status=trainer.profile_completion_status.value if trainer.profile_completion_status else None,
+            # Location preference
+            location_preference=trainer.location_preference,
             # User information
             user_name=user.full_name,
             user_email=user.email,
@@ -213,6 +215,8 @@ async def get_trainer(
         gym_phone=trainer.gym_phone,
         # Profile completion status
         profile_completion_status=trainer.profile_completion_status.value if trainer.profile_completion_status else None,
+        # Location preference
+        location_preference=trainer.location_preference,
         # User information
         user_name=user.full_name,
         user_email=user.email,
