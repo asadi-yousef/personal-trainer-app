@@ -78,7 +78,7 @@ A full-stack web application connecting personal trainers with clients, featurin
 - ✅ **Analytics Dashboard** - Insights for clients, trainers, and admins
 
 ### 🧠 Advanced Features
-- ✅ **Optimal Scheduling Algorithm** - AI-powered scheduling
+- ✅ **Optimal Scheduling Algorithm**
 - ✅ **Availability Management** - Trainers set weekly availability
 - ✅ **Time Slot System** - Granular availability tracking
 - ✅ **Session Tracking** - Progress monitoring and fitness goals
