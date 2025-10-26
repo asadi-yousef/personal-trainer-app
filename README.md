@@ -10,7 +10,7 @@ A full-stack web application connecting personal trainers with clients, featurin
 - **Backend**: Python 3.8+, MySQL 8.0+
 - **Frontend**: Node.js 16+, npm
 - **Tools**: Git, Virtual Environment
-- **AI Services**: OpenAI API Key (for meal planning and chatbot features)
+- **AI Services**: Groq api key
 
 ### Installation
 
@@ -78,13 +78,13 @@ A full-stack web application connecting personal trainers with clients, featurin
 - ✅ **Analytics Dashboard** - Insights for clients, trainers, and admins
 
 ### 🧠 Advanced Features
-- ✅ **Optimal Scheduling Algorithm** - AI-powered scheduling
+- ✅ **Optimal Scheduling Algorithm**
 - ✅ **Availability Management** - Trainers set weekly availability
 - ✅ **Time Slot System** - Granular availability tracking
 - ✅ **Session Tracking** - Progress monitoring and fitness goals
 - ✅ **Payment History** - Transaction tracking with refund capabilities
 - ✅ **Email Notifications** - Automated booking confirmations
-- ✅ **AI-Powered Meal Planning** - OpenAI integration for personalized meal plans
+- ✅ **AI-Powered Meal Planning** - Groq AI integration for personalized meal plans
 - ✅ **Chatbot Support** - AI assistant for user queries and support
 - ✅ **Admin Dashboard** - Platform management and analytics
 - ✅ **Trainer Registration Flow** - Multi-step profile completion
@@ -100,7 +100,7 @@ A full-stack web application connecting personal trainers with clients, featurin
 - Alembic (Migrations)
 - JWT (Authentication)
 - Pydantic (Validation)
-- OpenAI API (AI Integration)
+- Groq API (AI Integration)
 
 **Frontend:**
 - Next.js 15 (React framework)
