@@ -4,7 +4,7 @@ Booking management API endpoints for complete booking workflow
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 
 from app.database import get_db
@@ -89,10 +89,17 @@ async def reserve_time_slot(
             detail="Missing required reservation data"
         )
     
-    # Parse datetime strings
-    from datetime import datetime, timedelta
-    start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-    end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+    # Parse datetime strings with timezone awareness
+    from dateutil import parser
+    
+    start_dt = parser.isoparse(start_time) if isinstance(start_time, str) else start_time
+    end_dt = parser.isoparse(end_time) if isinstance(end_time, str) else end_time
+    
+    # Normalize to timezone-aware if needed
+    if start_dt.tzinfo is not None:
+        start_dt = start_dt.astimezone(timezone.utc).replace(tzinfo=None)
+    if end_dt.tzinfo is not None:
+        end_dt = end_dt.astimezone(timezone.utc).replace(tzinfo=None)
     
     # Check if slot is already reserved or booked
     from app.models import Booking, Session as SessionModel
@@ -117,6 +124,9 @@ async def reserve_time_slot(
     conflicting_sessions = []
     for session in existing_sessions:
         session_end = session.scheduled_date + timedelta(minutes=session.duration_minutes)
+        # Convert timezone-aware datetime to naive for comparison
+        if session_end.tzinfo is not None:
+            session_end = session_end.astimezone(timezone.utc).replace(tzinfo=None)
         if session_end > start_dt:
             conflicting_sessions.append(session)
     
@@ -535,9 +545,16 @@ async def check_availability_batch(
             if not all([booking_request_id, start_time, end_time]):
                 continue
             
-            # Parse datetime strings
-            start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-            end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            # Parse datetime strings with timezone awareness
+            from dateutil import parser
+            start_dt = parser.isoparse(start_time) if isinstance(start_time, str) else start_time
+            end_dt = parser.isoparse(end_time) if isinstance(end_time, str) else end_time
+            
+            # Normalize to timezone-aware if needed
+            if start_dt.tzinfo is not None:
+                start_dt = start_dt.astimezone(timezone.utc).replace(tzinfo=None)
+            if end_dt.tzinfo is not None:
+                end_dt = end_dt.astimezone(timezone.utc).replace(tzinfo=None)
             
             # Get booking request details
             booking_request = db.query(BookingRequest).filter(
@@ -565,9 +582,17 @@ async def check_availability_batch(
             conflicting_sessions = []
             for session in existing_sessions:
                 session_end = session.scheduled_date + timedelta(minutes=session.duration_minutes)
+                session_start = session.scheduled_date
+                
+                # Convert timezone-aware datetimes to naive for comparison
+                if session_end.tzinfo is not None:
+                    session_end = session_end.astimezone(timezone.utc).replace(tzinfo=None)
+                if session_start.tzinfo is not None:
+                    session_start = session_start.astimezone(timezone.utc).replace(tzinfo=None)
+                
                 # Check if there's insufficient break time between sessions
                 if (session_end + timedelta(minutes=min_break_minutes) > start_dt and 
-                    session.scheduled_date - timedelta(minutes=min_break_minutes) < end_dt):
+                    session_start - timedelta(minutes=min_break_minutes) < end_dt):
                     conflicting_sessions.append(session)
             
             # Check for break time violations with other proposed entries
@@ -582,8 +607,15 @@ async def check_availability_batch(
                 if not all([other_start, other_end]):
                     continue
                 
-                other_start_dt = datetime.fromisoformat(other_start.replace('Z', '+00:00'))
-                other_end_dt = datetime.fromisoformat(other_end.replace('Z', '+00:00'))
+                # Parse other entries with timezone awareness
+                other_start_dt = parser.isoparse(other_start) if isinstance(other_start, str) else other_start
+                other_end_dt = parser.isoparse(other_end) if isinstance(other_end, str) else other_end
+                
+                # Normalize to timezone-aware if needed
+                if other_start_dt.tzinfo is not None:
+                    other_start_dt = other_start_dt.astimezone(timezone.utc).replace(tzinfo=None)
+                if other_end_dt.tzinfo is not None:
+                    other_end_dt = other_end_dt.astimezone(timezone.utc).replace(tzinfo=None)
                 
                 # Check if there's insufficient break time between proposed sessions
                 if (other_end_dt + timedelta(minutes=min_break_minutes) > start_dt and 
